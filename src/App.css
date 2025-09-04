@@ -10,3 +10,115 @@ body {
 * {
   box-sizing: border-box;
 }
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* 스크롤바 스타일링 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* 커스텀 애니메이션 */
+@keyframes urgentShake {
+  0%, 100% { 
+    transform: translateX(0); 
+  }
+  25% { 
+    transform: translateX(-2px) rotate(-0.5deg); 
+  }
+  75% { 
+    transform: translateX(2px) rotate(0.5deg); 
+  }
+}
+
+@keyframes urgentPulse {
+  0%, 100% { 
+    transform: scale(1); 
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+  50% { 
+    transform: scale(1.1); 
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.6);
+  }
+}
+
+@keyframes urgentBounce {
+  0% { 
+    transform: translateY(0) rotate(-5deg); 
+  }
+  100% { 
+    transform: translateY(-4px) rotate(5deg); 
+  }
+}
+
+@keyframes gradientShift {
+  0% { 
+    filter: hue-rotate(0deg) brightness(1); 
+  }
+  100% { 
+    filter: hue-rotate(10deg) brightness(1.1); 
+  }
+}
+
+@keyframes slideInFromRight {
+  0% {
+    transform: translateX(100px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes gentleFloat {
+  0%, 100% { 
+    transform: translateY(0px); 
+  }
+  50% { 
+    transform: translateY(-3px); 
+  }
+}
+
+/* 유틸리티 클래스 */
+.animate-urgent-shake {
+  animation: urgentShake 2s ease-in-out infinite;
+}
+
+.animate-urgent-pulse {
+  animation: urgentPulse 1s ease-in-out infinite;
+}
+
+.animate-urgent-bounce {
+  animation: urgentBounce 0.6s ease-in-out infinite alternate;
+}
+
+.animate-gradient-shift {
+  animation: gradientShift 3s ease-in-out infinite alternate;
+}
+
+.animate-slide-in-right {
+  animation: slideInFromRight 0.8s ease-out both;
+}
+
+.animate-gentle-float {
+  animation: gentleFloat 3s ease-in-out infinite;
+}
