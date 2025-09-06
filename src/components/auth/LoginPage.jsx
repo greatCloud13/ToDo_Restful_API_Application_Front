@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, User, Mail, UserPlus, LogIn } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Eye, EyeOff, Lock, User, Mail, UserPlus, LogIn, CheckCircle, XCircle, AlertCircle, Key } from 'lucide-react';
+import { authService } from '../../services/authService';
 
 const LoginPage = ({ onLoginSuccess }) => {
   const [isSignupMode, setIsSignupMode] = useState(false);
@@ -18,10 +19,114 @@ const LoginPage = ({ onLoginSuccess }) => {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    inviteCode: ''
   });
 
   const [errors, setErrors] = useState({});
+  const [validations, setValidations] = useState({
+    username: null, // null: 검사안함, true: 사용가능, false: 중복
+    email: null,
+    password: null
+  });
+
+  // 실시간 검증 debounce용
+  const debounceTimers = useRef({});
+
+  // 비밀번호 정책 검증 (백엔드 DTO 기준)
+  const validatePassword = (password) => {
+    if (!password) return { valid: false, message: '비밀번호를 입력해주세요' };
+    if (password.length < 8) return { valid: false, message: '비밀번호는 8자 이상이어야 합니다' };
+    if (password.length > 100) return { valid: false, message: '비밀번호는 100자 이하여야 합니다' };
+    
+    const hasLower = /[a-z]/.test(password);
+    const hasUpper = /[A-Z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecial = /[@$!%*?&]/.test(password);
+    
+    if (!(hasLower && hasUpper && hasNumber && hasSpecial)) {
+      return { valid: false, message: '영문 대소문자, 숫자, 특수문자(@$!%*?&)를 모두 포함해야 합니다' };
+    }
+    
+    return { valid: true, message: '사용 가능한 비밀번호입니다' };
+  };
+
+  // 아이디 유효성 검증 (백엔드 DTO 기준)
+  const validateUsername = (username) => {
+    if (!username) return { valid: false, message: '아이디를 입력해주세요' };
+    if (username.length < 3) return { valid: false, message: '아이디는 3자 이상이어야 합니다' };
+    if (username.length > 20) return { valid: false, message: '아이디는 20자 이하여야 합니다' };
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return { valid: false, message: '아이디는 영문, 숫자, 언더스코어만 사용 가능합니다' };
+    
+    return { valid: true, message: '' };
+  };
+
+  // 이메일 유효성 검증
+  const validateEmail = (email) => {
+    if (!email) return { valid: false, message: '이메일을 입력해주세요' };
+    if (email.length > 100) return { valid: false, message: '이메일은 100자 이하여야 합니다' };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { valid: false, message: '올바른 이메일 형식이 아닙니다' };
+    
+    return { valid: true, message: '' };
+  };
+
+  // 실시간 아이디 중복 확인 (debounced)
+  const checkUsernameDebounced = (username) => {
+    clearTimeout(debounceTimers.current.username);
+    
+    debounceTimers.current.username = setTimeout(async () => {
+      const validation = validateUsername(username);
+      if (!validation.valid) {
+        setValidations(prev => ({ ...prev, username: false }));
+        setErrors(prev => ({ ...prev, username: validation.message }));
+        return;
+      }
+
+      try {
+        const result = await authService.checkUsername(username);
+        if (result.success) {
+          setValidations(prev => ({ ...prev, username: true }));
+          setErrors(prev => ({ ...prev, username: '' }));
+        }
+      } catch (error) {
+        setValidations(prev => ({ ...prev, username: false }));
+        if (error.message.includes('409')) {
+          setErrors(prev => ({ ...prev, username: '이미 사용중인 아이디입니다' }));
+        } else {
+          setErrors(prev => ({ ...prev, username: '아이디 확인 중 오류가 발생했습니다' }));
+        }
+      }
+    }, 500); // 0.5초 debounce
+  };
+
+  // 실시간 이메일 중복 확인 (debounced)
+  const checkEmailDebounced = (email) => {
+    clearTimeout(debounceTimers.current.email);
+    
+    debounceTimers.current.email = setTimeout(async () => {
+      const validation = validateEmail(email);
+      if (!validation.valid) {
+        setValidations(prev => ({ ...prev, email: false }));
+        setErrors(prev => ({ ...prev, email: validation.message }));
+        return;
+      }
+
+      try {
+        const result = await authService.checkEmail(email);
+        if (result.success) {
+          setValidations(prev => ({ ...prev, email: true }));
+          setErrors(prev => ({ ...prev, email: '' }));
+        }
+      } catch (error) {
+        setValidations(prev => ({ ...prev, email: false }));
+        if (error.message.includes('409')) {
+          setErrors(prev => ({ ...prev, email: '이미 사용중인 이메일입니다' }));
+        } else {
+          setErrors(prev => ({ ...prev, email: '이메일 확인 중 오류가 발생했습니다' }));
+        }
+      }
+    }, 500); // 0.5초 debounce
+  };
 
   const handleLoginChange = (e) => {
     const { name, value } = e.target;
@@ -44,6 +149,7 @@ const LoginPage = ({ onLoginSuccess }) => {
       ...prev,
       [name]: value
     }));
+
     // 에러 클리어
     if (errors[name]) {
       setErrors(prev => ({
@@ -51,36 +157,70 @@ const LoginPage = ({ onLoginSuccess }) => {
         [name]: ''
       }));
     }
+
+    // 실시간 검증
+    if (name === 'username' && value.trim()) {
+      setValidations(prev => ({ ...prev, username: null }));
+      checkUsernameDebounced(value.trim());
+    } else if (name === 'email' && value.trim()) {
+      setValidations(prev => ({ ...prev, email: null }));
+      checkEmailDebounced(value.trim());
+    } else if (name === 'password') {
+      const validation = validatePassword(value);
+      setValidations(prev => ({ ...prev, password: validation.valid }));
+      if (!validation.valid) {
+        setErrors(prev => ({ ...prev, password: validation.message }));
+      } else {
+        setErrors(prev => ({ ...prev, password: '' }));
+      }
+      
+      // 비밀번호 확인 재검증
+      if (signupData.confirmPassword) {
+        if (value !== signupData.confirmPassword) {
+          setErrors(prev => ({ ...prev, confirmPassword: '비밀번호가 일치하지 않습니다' }));
+        } else {
+          setErrors(prev => ({ ...prev, confirmPassword: '' }));
+        }
+      }
+    } else if (name === 'confirmPassword') {
+      if (value !== signupData.password) {
+        setErrors(prev => ({ ...prev, confirmPassword: '비밀번호가 일치하지 않습니다' }));
+      } else {
+        setErrors(prev => ({ ...prev, confirmPassword: '' }));
+      }
+    }
   };
 
-  // 회원가입 유효성 검증
-  const validateSignup = () => {
+  // 회원가입 폼 전체 유효성 검증
+  const validateSignupForm = () => {
     const newErrors = {};
 
     if (!signupData.username.trim()) {
       newErrors.username = '아이디를 입력해주세요';
-    } else if (signupData.username.length < 3) {
-      newErrors.username = '아이디는 3자 이상이어야 합니다';
-    } else if (!/^[a-zA-Z0-9_]+$/.test(signupData.username)) {
-      newErrors.username = '아이디는 영문, 숫자, 언더스코어만 사용 가능합니다';
+    } else if (validations.username !== true) {
+      newErrors.username = '아이디 중복 확인이 필요합니다';
     }
 
     if (!signupData.email.trim()) {
       newErrors.email = '이메일을 입력해주세요';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupData.email)) {
-      newErrors.email = '올바른 이메일 형식이 아닙니다';
+    } else if (validations.email !== true) {
+      newErrors.email = '이메일 중복 확인이 필요합니다';
     }
 
     if (!signupData.password) {
       newErrors.password = '비밀번호를 입력해주세요';
-    } else if (signupData.password.length < 6) {
-      newErrors.password = '비밀번호는 6자 이상이어야 합니다';
+    } else if (validations.password !== true) {
+      newErrors.password = '비밀번호 정책을 확인해주세요';
     }
 
     if (!signupData.confirmPassword) {
       newErrors.confirmPassword = '비밀번호 확인을 입력해주세요';
     } else if (signupData.password !== signupData.confirmPassword) {
       newErrors.confirmPassword = '비밀번호가 일치하지 않습니다';
+    }
+
+    if (!signupData.inviteCode.trim()) {
+      newErrors.inviteCode = '초대 코드를 입력해주세요';
     }
 
     setErrors(newErrors);
@@ -93,40 +233,10 @@ const LoginPage = ({ onLoginSuccess }) => {
     setIsLoading(true);
     
     try {
-      const response = await fetch('http://localhost:8080/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': '*/*',
-        },
-        body: JSON.stringify({
-          username: loginData.username,
-          password: loginData.password
-        })
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setErrors({ login: '아이디 또는 비밀번호가 잘못되었습니다' });
-        } else if (response.status === 404) {
-          setErrors({ login: 'API 엔드포인트를 찾을 수 없습니다' });
-        } else {
-          setErrors({ login: `서버 오류가 발생했습니다 (${response.status})` });
-        }
-        return;
-      }
-
-      const data = await response.json();
+      const result = await authService.login(loginData.username, loginData.password);
       
       // 토큰 저장
-      window.authTokens = {
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        tokenType: data.tokenType,
-        username: data.username,
-        authorities: data.authorities,
-        expiresIn: data.expiresIn
-      };
+      authService.saveTokens(result);
       
       // 로그인 성공 처리
       if (onLoginSuccess) {
@@ -136,7 +246,11 @@ const LoginPage = ({ onLoginSuccess }) => {
     } catch (error) {
       console.error('로그인 실패:', error);
       
-      if (error.message.includes('Failed to fetch')) {
+      if (error.message.includes('401')) {
+        setErrors({ login: '아이디 또는 비밀번호가 잘못되었습니다' });
+      } else if (error.message.includes('404')) {
+        setErrors({ login: 'API 엔드포인트를 찾을 수 없습니다' });
+      } else if (error.message.includes('Failed to fetch')) {
         setErrors({ login: '서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요' });
       } else {
         setErrors({ login: '로그인 중 오류가 발생했습니다' });
@@ -150,74 +264,39 @@ const LoginPage = ({ onLoginSuccess }) => {
   const handleSignup = async (e) => {
     e.preventDefault();
     
-    if (!validateSignup()) {
+    if (!validateSignupForm()) {
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // 백엔드 API가 준비되면 실제 회원가입 요청
-      const response = await fetch('http://localhost:8080/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': '*/*',
-        },
-        body: JSON.stringify({
-          username: signupData.username,
-          email: signupData.email,
-          password: signupData.password
-        })
-      });
-
-      if (!response.ok) {
-        if (response.status === 409) {
-          setErrors({ signup: '이미 존재하는 아이디 또는 이메일입니다' });
-        } else if (response.status === 404) {
-          // 백엔드 API가 없는 경우 임시 처리
-          console.log('회원가입 API 준비 중...');
-          alert('회원가입이 성공적으로 처리되었습니다! (임시 메시지)\n로그인 탭에서 로그인해주세요.');
-          setIsSignupMode(false);
-          setSignupData({
-            username: '',
-            email: '',
-            password: '',
-            confirmPassword: ''
-          });
-          return;
-        } else {
-          setErrors({ signup: `회원가입 중 오류가 발생했습니다 (${response.status})` });
-        }
-        return;
-      }
-
-      const data = await response.json();
-      alert('회원가입이 완료되었습니다! 로그인해주세요.');
+      const result = await authService.signup(signupData);
       
-      // 회원가입 성공 시 로그인 탭으로 전환
-      setIsSignupMode(false);
-      setSignupData({
-        username: '',
-        email: '',
-        password: '',
-        confirmPassword: ''
-      });
-
-    } catch (error) {
-      console.error('회원가입 실패:', error);
-      
-      if (error.message.includes('Failed to fetch')) {
-        // 백엔드 API가 없는 경우 임시 처리
-        console.log('회원가입 API 준비 중...');
-        alert('회원가입이 성공적으로 처리되었습니다! (임시 메시지)\n로그인 탭에서 로그인해주세요.');
+      if (result.success) {
+        alert('회원가입이 완료되었습니다! 로그인해주세요.');
+        
+        // 회원가입 성공 시 로그인 탭으로 전환
         setIsSignupMode(false);
         setSignupData({
           username: '',
           email: '',
           password: '',
-          confirmPassword: ''
+          confirmPassword: '',
+          inviteCode: ''
         });
+        setValidations({ username: null, email: null, password: null });
+      }
+
+    } catch (error) {
+      console.error('회원가입 실패:', error);
+      
+      if (error.message.includes('409')) {
+        setErrors({ signup: '이미 존재하는 아이디 또는 이메일입니다' });
+      } else if (error.message.includes('400')) {
+        setErrors({ signup: '입력 정보를 다시 확인해주세요' });
+      } else if (error.message.includes('Failed to fetch')) {
+        setErrors({ signup: '서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요' });
       } else {
         setErrors({ signup: '회원가입 중 오류가 발생했습니다' });
       }
@@ -229,8 +308,21 @@ const LoginPage = ({ onLoginSuccess }) => {
   const switchMode = (signupMode) => {
     setIsSignupMode(signupMode);
     setErrors({});
+    setValidations({ username: null, email: null, password: null });
     setShowPassword(false);
     setShowConfirmPassword(false);
+  };
+
+  // 입력 필드 상태 아이콘 렌더링
+  const renderValidationIcon = (fieldName) => {
+    const status = validations[fieldName];
+    if (status === null) return null;
+    
+    return status ? (
+      <CheckCircle className="w-4 h-4 text-green-400" />
+    ) : (
+      <XCircle className="w-4 h-4 text-red-400" />
+    );
   };
 
   return (
@@ -397,7 +489,7 @@ const LoginPage = ({ onLoginSuccess }) => {
             </form>
           ) : (
             /* 회원가입 폼 */
-            <form onSubmit={handleSignup} className="space-y-6">
+            <form onSubmit={handleSignup} className="space-y-5">
               {/* 아이디 입력 */}
               <div className="space-y-2">
                 <label htmlFor="signup-username" className="block text-sm font-medium text-gray-200">
@@ -414,13 +506,17 @@ const LoginPage = ({ onLoginSuccess }) => {
                     required
                     value={signupData.username}
                     onChange={handleSignupChange}
-                    className={`w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-sm border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+                    className={`w-full pl-10 pr-10 py-3 bg-white/10 backdrop-blur-sm border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
                       errors.username ? 'border-red-500/50' : 'border-white/20'
                     }`}
-                    placeholder="아이디를 입력하세요"
+                    placeholder="아이디를 입력하세요 (3-20자)"
                   />
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    {renderValidationIcon('username')}
+                  </div>
                 </div>
                 {errors.username && <p className="text-red-400 text-xs">{errors.username}</p>}
+                <p className="text-gray-400 text-xs">영문, 숫자, 언더스코어만 사용 가능</p>
               </div>
 
               {/* 이메일 입력 */}
@@ -439,11 +535,14 @@ const LoginPage = ({ onLoginSuccess }) => {
                     required
                     value={signupData.email}
                     onChange={handleSignupChange}
-                    className={`w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-sm border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+                    className={`w-full pl-10 pr-10 py-3 bg-white/10 backdrop-blur-sm border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
                       errors.email ? 'border-red-500/50' : 'border-white/20'
                     }`}
                     placeholder="이메일을 입력하세요"
                   />
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    {renderValidationIcon('email')}
+                  </div>
                 </div>
                 {errors.email && <p className="text-red-400 text-xs">{errors.email}</p>}
               </div>
@@ -464,20 +563,24 @@ const LoginPage = ({ onLoginSuccess }) => {
                     required
                     value={signupData.password}
                     onChange={handleSignupChange}
-                    className={`w-full pl-10 pr-12 py-3 bg-white/10 backdrop-blur-sm border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+                    className={`w-full pl-10 pr-16 py-3 bg-white/10 backdrop-blur-sm border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
                       errors.password ? 'border-red-500/50' : 'border-white/20'
                     }`}
                     placeholder="비밀번호를 입력하세요"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center space-x-1">
+                    {renderValidationIcon('password')}
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-gray-400 hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 {errors.password && <p className="text-red-400 text-xs">{errors.password}</p>}
+                <p className="text-gray-400 text-xs">8자 이상, 영문 대소문자, 숫자, 특수문자 포함</p>
               </div>
 
               {/* 비밀번호 확인 */}
@@ -512,10 +615,36 @@ const LoginPage = ({ onLoginSuccess }) => {
                 {errors.confirmPassword && <p className="text-red-400 text-xs">{errors.confirmPassword}</p>}
               </div>
 
+              {/* 초대 코드 입력 */}
+              <div className="space-y-2">
+                <label htmlFor="inviteCode" className="block text-sm font-medium text-gray-200">
+                  초대 코드
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Key className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="inviteCode"
+                    name="inviteCode"
+                    type="text"
+                    required
+                    value={signupData.inviteCode}
+                    onChange={handleSignupChange}
+                    className={`w-full pl-10 pr-4 py-3 bg-white/10 backdrop-blur-sm border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 ${
+                      errors.inviteCode ? 'border-red-500/50' : 'border-white/20'
+                    }`}
+                    placeholder="초대 코드를 입력하세요"
+                  />
+                </div>
+                {errors.inviteCode && <p className="text-red-400 text-xs">{errors.inviteCode}</p>}
+                <p className="text-gray-400 text-xs">비공개 서비스입니다. 관리자에게 문의하세요.</p>
+              </div>
+
               {/* 회원가입 버튼 */}
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !(validations.username && validations.email && validations.password)}
                 className="w-full py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:from-gray-500 disabled:to-gray-600 text-white font-medium rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-transparent transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
