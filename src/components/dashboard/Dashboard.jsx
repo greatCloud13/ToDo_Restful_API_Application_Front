@@ -20,7 +20,8 @@ import {
   ChevronDown,
   Edit,
   Trash2,
-  FileText
+  FileText,
+  Eye
 } from 'lucide-react';
 import { useAppContext } from '../../contexts/AppContext';
 
@@ -48,6 +49,8 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard' }) => {
   const [isAddTodoModalOpen, setIsAddTodoModalOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
   const [sortOrder, setSortOrder] = useState('priority');
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedTodo, setSelectedTodo] = useState(null);
   // 메모 필드 추가
   const [newTodo, setNewTodo] = useState({
     title: '',
@@ -200,18 +203,19 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard' }) => {
   };
 
   const handleCloseModal = () => {
-    setIsAddTodoModalOpen(false);
-    setEditingTodo(null);
-    // 메모 필드 포함하여 초기화
-    setNewTodo({
-      title: '',
-      priority: 'medium',
-      category: '업무',
-      dueDate: new Date().toISOString().split('T')[0],
-      memo: ''
-    });
-    clearError();
-  };
+  setIsAddTodoModalOpen(false);
+  setIsDetailModalOpen(false);
+  setEditingTodo(null);
+  setSelectedTodo(null);
+  setNewTodo({
+    title: '',
+    priority: 'medium',
+    category: '업무',
+    dueDate: new Date().toISOString().split('T')[0],
+    memo: ''
+  });
+  clearError();
+};
 
   const handleNewTodoChange = (e) => {
     const { name, value } = e.target;
@@ -254,6 +258,11 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard' }) => {
     } catch (error) {
       console.error('상태 변경 실패:', error);
     }
+  };
+
+  const handleViewDetail = (todo) => {
+  setSelectedTodo(todo);
+  setIsDetailModalOpen(true);
   };
 
   const handleSortChange = (newSortOrder) => {
@@ -620,6 +629,13 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard' }) => {
                     </div>
                     <div className="flex space-x-1">
                       <button 
+                        onClick={() => handleViewDetail(todo)}  // 새로 추가
+                        className="p-2 text-gray-400 hover:text-green-400 transition-colors"
+                        title="상세보기"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button 
                         onClick={() => handleEditTodo(todo)}
                         className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
                         title="수정"
@@ -851,6 +867,106 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard' }) => {
           </div>
         </div>
       )}
+
+      {/* 할일 상세보기 모달 */}
+{isDetailModalOpen && selectedTodo && (
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-md">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-white">할일 상세</h3>
+          <button
+            onClick={handleCloseModal}
+            className="p-2 text-gray-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-200 mb-1">제목</label>
+            <p className="text-white text-lg">{selectedTodo.title}</p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-200 mb-1">우선순위</label>
+              <span className={`inline-block px-3 py-1 rounded-full text-sm border ${getPriorityColor(selectedTodo.priority)}`}>
+                {getPriorityText(selectedTodo.priority)}
+              </span>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-200 mb-1">상태</label>
+              <span className={`inline-block px-3 py-1 rounded-full text-sm ${getStatusColor(selectedTodo.status)}`}>
+                {getStatusText(selectedTodo.status)}
+              </span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-200 mb-1">카테고리</label>
+              <p className="text-white">{selectedTodo.category}</p>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-200 mb-1">마감일</label>
+              <p className="text-white">{selectedTodo.dueDate}</p>
+            </div>
+          </div>
+
+          {/* 메모 영역 - 항상 표시 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-200 mb-2">
+              <FileText className="w-4 h-4 inline mr-1" />
+              메모
+            </label>
+            {selectedTodo.memo ? (
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <p className="text-white whitespace-pre-wrap">{selectedTodo.memo}</p>
+              </div>
+            ) : (
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <p className="text-gray-400 italic">작성된 메모가 없습니다</p>
+              </div>
+            )}
+          </div>
+          
+          {/* 생성일 정보 */}
+          {selectedTodo.createdAt && (
+            <div>
+              <label className="block text-sm font-medium text-gray-200 mb-1">생성일</label>
+              <p className="text-gray-400 text-sm">
+                {new Date(selectedTodo.createdAt).toLocaleString('ko-KR')}
+              </p>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex space-x-3 mt-6">
+          <button
+            onClick={() => {
+              setIsDetailModalOpen(false);
+              handleEditTodo(selectedTodo);
+            }}
+            className="flex-1 py-3 px-4 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center justify-center"
+          >
+            <Edit className="w-4 h-4 mr-2" />
+            수정하기
+          </button>
+          <button
+            onClick={handleCloseModal}
+            className="flex-1 py-3 px-4 bg-gray-500/20 text-gray-300 rounded-lg hover:bg-gray-500/30 transition-colors"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };
