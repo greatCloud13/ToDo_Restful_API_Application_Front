@@ -29,8 +29,9 @@ import {
   FileText
 } from 'lucide-react';
 import { useAppContext } from '../../contexts/AppContext';
+import { authService } from '../../services/authService';
 
-const TodoManagementPage = ({ onPageChange, currentPage = 'todos' }) => {
+const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) => {
   const {
     // Context 상태
     todos,
@@ -63,6 +64,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos' }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedTodo, setSelectedTodo] = useState(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // 새 할일/수정 폼 데이터 (메모 필드 추가)
   const [formData, setFormData] = useState({
@@ -222,10 +224,44 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos' }) => {
   };
 
   // 이벤트 핸들러들
-  const handleLogout = () => {
-    window.authTokens = null;
-    window.location.reload();
-  };
+  const handleLogout = async () => {
+      if (isLoggingOut) return; // 중복 실행 방지
+  
+      try {
+        setIsLoggingOut(true);
+        
+        // 1순위: props로 전달된 onLogout 사용 (권장)
+        if (onLogout && typeof onLogout === 'function') {
+          console.log('Props onLogout 함수 사용');
+          await onLogout();
+          return;
+        }
+        
+        // 2순위: authService 직접 사용
+        console.log('authService 직접 사용');
+        await authService.logout();
+        
+        // 로그아웃 성공 후 페이지 새로고침 (마지막 보장책)
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+        
+      } catch (error) {
+        console.error('로그아웃 처리 중 오류:', error);
+        
+        // 오류 발생 시 강제 정리 및 새로고침
+        try {
+          authService.clearAllTokens();
+        } catch (clearError) {
+          console.error('토큰 정리 실패:', clearError);
+        }
+        
+        // 최후의 수단: 강제 새로고침
+        window.location.reload();
+      } finally {
+        setIsLoggingOut(false);
+      }
+    };
 
   const handleMenuClick = (menuId) => {
     if (onPageChange) {
