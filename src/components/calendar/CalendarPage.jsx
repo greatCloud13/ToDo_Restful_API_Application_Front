@@ -19,8 +19,9 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAppContext } from '../../contexts/AppContext';
+import { authService } from '../../services/authService';
 
-const CalendarPage = ({ onPageChange, currentPage = 'calendar' }) => {
+const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
   const {
     // Context 상태
     todos,
@@ -44,6 +45,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar' }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isAddTodoModalOpen, setIsAddTodoModalOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [newTodo, setNewTodo] = useState({
     title: '',
     priority: 'medium',
@@ -146,10 +148,44 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar' }) => {
     setSelectedDate(today);
   };
 
-  const handleLogout = () => {
-    window.authTokens = null;
-    window.location.reload();
-  };
+  const handleLogout = async () => {
+      if (isLoggingOut) return; // 중복 실행 방지
+  
+      try {
+        setIsLoggingOut(true);
+        
+        // 1순위: props로 전달된 onLogout 사용 (권장)
+        if (onLogout && typeof onLogout === 'function') {
+          console.log('Props onLogout 함수 사용');
+          await onLogout();
+          return;
+        }
+        
+        // 2순위: authService 직접 사용
+        console.log('authService 직접 사용');
+        await authService.logout();
+        
+        // 로그아웃 성공 후 페이지 새로고침 (마지막 보장책)
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+        
+      } catch (error) {
+        console.error('로그아웃 처리 중 오류:', error);
+        
+        // 오류 발생 시 강제 정리 및 새로고침
+        try {
+          authService.clearAllTokens();
+        } catch (clearError) {
+          console.error('토큰 정리 실패:', clearError);
+        }
+        
+        // 최후의 수단: 강제 새로고침
+        window.location.reload();
+      } finally {
+        setIsLoggingOut(false);
+      }
+    };
 
   const handleMenuClick = (menuId) => {
     if (onPageChange) {
