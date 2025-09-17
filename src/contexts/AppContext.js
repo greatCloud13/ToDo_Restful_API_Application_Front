@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { todoService } from '../services/todoService';
+import { dashboardService } from '../services/dashboardService';
 
 // Context 생성
 const AppContext = createContext();
@@ -167,6 +168,53 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // 대시보드 전용 API 함수들 - dashboardService 사용
+  const getTodayTodos = useCallback(async () => {
+    try {
+      return await dashboardService.getTodayTodos();
+    } catch (error) {
+      console.error('오늘 할일 조회 실패:', error);
+      // 실패 시 로컬 데이터로 fallback
+      const today = new Date().toISOString().split('T')[0];
+      return state.todos.filter(todo => todo.dueDate === today);
+    }
+  }, [state.todos]);
+
+  const getUrgentTodos = useCallback(async () => {
+    try {
+      return await dashboardService.getUrgentTodos();
+    } catch (error) {
+      console.error('긴급 할일 조회 실패:', error);
+      // 실패 시 로컬 데이터로 fallback
+      return state.todos.filter(todo => 
+        (todo.priority === 'critical' || todo.priority === 'high') && 
+        todo.status !== 'completed'
+      );
+    }
+  }, [state.todos]);
+
+  const getStats = useCallback(async () => {
+    try {
+      return await dashboardService.getStats();
+    } catch (error) {
+      console.error('통계 조회 실패:', error);
+      // 실패 시 로컬 데이터로 fallback
+      const total = state.todos.length;
+      const completed = state.todos.filter(todo => todo.status === 'completed').length;
+      const pending = state.todos.filter(todo => todo.status === 'pending').length;
+      const inProgress = state.todos.filter(todo => todo.status === 'in-progress').length;
+      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+      
+      return {
+        total,
+        completed,
+        pending,
+        inProgress,
+        completionRate
+      };
+    }
+  }, [state.todos]);
+
   const clearError = () => {
     dispatch({ type: actionTypes.SET_ERROR, payload: null });
   };
@@ -184,13 +232,18 @@ export const AppProvider = ({ children }) => {
     toggleTodoStatus,
     clearError,
 
-    // 유틸리티 함수들
-    getTodayTodos: () => {
+    // 대시보드 API 함수들
+    getTodayTodos,
+    getUrgentTodos,
+    getStats,
+
+    // 로컬 유틸리티 함수들 (fallback용)
+    getTodayTodosLocal: () => {
       const today = new Date().toISOString().split('T')[0];
       return state.todos.filter(todo => todo.dueDate === today);
     },
     
-    getUrgentTodos: () => {
+    getUrgentTodosLocal: () => {
       return state.todos.filter(todo => 
         (todo.priority === 'critical' || todo.priority === 'high') && 
         todo.status !== 'completed'
@@ -201,7 +254,7 @@ export const AppProvider = ({ children }) => {
       return state.todos.filter(todo => todo.dueDate === date);
     },
     
-    getStats: () => {
+    getStatsLocal: () => {
       const total = state.todos.length;
       const completed = state.todos.filter(todo => todo.status === 'completed').length;
       const pending = state.todos.filter(todo => todo.status === 'pending').length;
