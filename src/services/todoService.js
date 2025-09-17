@@ -43,7 +43,7 @@ class TodoService {
       id: backendTodo.id,
       title: backendTodo.title,
       priority: priorityMap[backendTodo.taskPriority] || 'medium',
-      status: statusMap[backendTodo.status] || 'pending',
+      status: statusMap[backendTodo.taskStatus] || 'pending',
       dueDate: backendTodo.targetDate || backendTodo.planningDate || new Date().toISOString().split('T')[0],
       category: backendTodo.category || '업무',
       memo: backendTodo.memo || '',
