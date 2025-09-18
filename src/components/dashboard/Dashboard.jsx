@@ -23,7 +23,7 @@ import {
   Eye
 } from 'lucide-react';
 
-// 서비스 클래스들 (실제로는 별도 파일에서 import)
+// 서비스 클래스들
 class DashboardService {
   constructor() {
     this.baseURL = 'http://localhost:8080/dashboard';
@@ -202,11 +202,9 @@ class TodoService {
   }
 }
 
-// 서비스 인스턴스
 const dashboardService = new DashboardService();
 const todoService = new TodoService();
 
-// 커스텀 훅: 서버 데이터 fetching만 담당
 function useDashboardData() {
   const [data, setData] = useState({
     stats: null,
@@ -243,7 +241,6 @@ function useDashboardData() {
     }
   }, []);
 
-  // 마운트 시 한 번만 실행
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
@@ -251,15 +248,13 @@ function useDashboardData() {
   return { ...data, refetch: fetchDashboardData };
 }
 
-// 메인 대시보드 컴포넌트
 const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
-  // 서버 데이터
   const { stats, todayTodos, urgentTodos, loading, error, refetch } = useDashboardData();
   
-  // 로컬 UI 상태
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isAddTodoModalOpen, setIsAddTodoModalOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState('priority');
+  const [hiddenTodos, setHiddenTodos] = useState(new Set());
   const [newTodo, setNewTodo] = useState({
     title: '',
     priority: 'medium',
@@ -268,35 +263,77 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
     memo: ''
   });
 
-  // 사용자 정보 (간단하게 처리)
   const user = {
     username: window.authTokens?.username || "admin",
     authorities: window.authTokens?.authorities || ["ROLE_ADMIN"]
   };
 
-  // 시계 업데이트
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // 정렬된 오늘 할일
+  const displayUrgentTodos = useMemo(() => {
+    let baseUrgentTodos = urgentTodos.length > 0 ? urgentTodos : [];
+    
+    if (baseUrgentTodos.length === 0) {
+      baseUrgentTodos = todayTodos.filter(todo => 
+        (todo.priority === 'critical' || todo.priority === 'high') && 
+        todo.status !== 'completed'
+      );
+    } else {
+      const completedTodayIds = new Set(
+        todayTodos.filter(todo => todo.status === 'completed').map(todo => todo.id)
+      );
+      
+      baseUrgentTodos = baseUrgentTodos.filter(todo => !completedTodayIds.has(todo.id));
+      
+      const newUrgentFromToday = todayTodos.filter(todo => 
+        (todo.priority === 'critical' || todo.priority === 'high') && 
+        todo.status !== 'completed' &&
+        !baseUrgentTodos.some(existing => existing.id === todo.id)
+      );
+      
+      baseUrgentTodos = [...baseUrgentTodos, ...newUrgentFromToday];
+    }
+    
+    return baseUrgentTodos;
+  }, [urgentTodos, todayTodos]);
+
   const sortedTodayTodos = useMemo(() => {
     if (!todayTodos.length) return [];
     
-    const sorted = [...todayTodos];
+    let filtered = todayTodos.filter(todo => !hiddenTodos.has(todo.id));
+    
+    filtered = filtered.sort((a, b) => {
+      if (a.status === 'completed' && b.status !== 'completed') return 1;
+      if (a.status !== 'completed' && b.status === 'completed') return -1;
+      return 0;
+    });
+
     switch (sortOrder) {
       case 'priority':
         const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3, minimal: 4 };
-        return sorted.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+        return filtered.sort((a, b) => {
+          if ((a.status === 'completed') === (b.status === 'completed')) {
+            return priorityOrder[a.priority] - priorityOrder[b.priority];
+          }
+          return 0;
+        });
       case 'date':
-        return sorted.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        return filtered.sort((a, b) => {
+          if ((a.status === 'completed') === (b.status === 'completed')) {
+            return new Date(a.dueDate) - new Date(b.dueDate);
+          }
+          return 0;
+        });
       default:
-        return sorted;
+        return filtered;
     }
-  }, [todayTodos, sortOrder]);
+  }, [todayTodos, sortOrder, hiddenTodos]);
 
-  // 이벤트 핸들러들
+  const hiddenCount = todayTodos.filter(todo => hiddenTodos.has(todo.id)).length;
+
   const handleAddTodo = useCallback(async () => {
     if (!newTodo.title.trim()) return;
 
@@ -310,7 +347,6 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
         dueDate: new Date().toISOString().split('T')[0],
         memo: ''
       });
-      // 데이터 새로고침
       refetch();
     } catch (error) {
       console.error('할일 추가 실패:', error);
@@ -338,12 +374,27 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
     }
   }, [refetch]);
 
+  const handleToggleHidden = useCallback((id) => {
+    setHiddenTodos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const showAllHidden = useCallback(() => {
+    setHiddenTodos(new Set());
+  }, []);
+
   const handleLogout = useCallback(async () => {
     try {
       if (onLogout) {
         await onLogout();
       } else {
-        // 간단한 로그아웃 처리
         window.authTokens = null;
         localStorage.removeItem('authTokens');
         window.location.reload();
@@ -354,7 +405,6 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
     }
   }, [onLogout]);
 
-  // UI 헬퍼 함수들
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'critical': return 'text-red-300 bg-red-600/20 border-red-500/30';
@@ -388,7 +438,6 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
     }
   };
 
-  // 기본 통계 (데이터 없을 때)
   const displayStats = stats || { total: 0, completed: 0, inProgress: 0, pending: 0, completionRate: 0 };
 
   const menuItems = [
@@ -401,7 +450,6 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* 네비게이션 헤더 */}
       <nav className="bg-black/20 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -438,7 +486,7 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
             <div className="flex items-center space-x-4">
               <button className="relative p-2 text-gray-400 hover:text-white transition-colors">
                 <Bell className="w-5 h-5" />
-                {urgentTodos.length > 0 && (
+                {displayUrgentTodos.length > 0 && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                 )}
               </button>
@@ -461,8 +509,7 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
         </div>
       </nav>
 
-      {/* 긴급 알림 배너 */}
-      {urgentTodos.length > 0 && (
+      {displayUrgentTodos.length > 0 && (
         <div className="bg-gradient-to-r from-red-600/30 via-orange-600/30 to-red-600/30 border-b border-red-500/50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="bg-gradient-to-r from-red-500/20 via-orange-500/20 to-red-500/20 backdrop-blur-sm rounded-xl p-4 border border-red-500/30">
@@ -473,16 +520,16 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                       <AlertCircle className="w-7 h-7 text-red-300" />
                     </div>
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">{urgentTodos.length}</span>
+                      <span className="text-white text-xs font-bold">{displayUrgentTodos.length}</span>
                     </div>
                   </div>
                   <div>
                     <h3 className="text-red-200 font-bold text-lg">⚡ 긴급 알림 🔥</h3>
-                    <p className="text-red-300">{urgentTodos.length}개의 긴급한 할 일이 있습니다!</p>
+                    <p className="text-red-300">{displayUrgentTodos.length}개의 긴급한 할 일이 있습니다!</p>
                   </div>
                 </div>
                 <div className="flex space-x-3">
-                  {urgentTodos.slice(0, 2).map((todo) => (
+                  {displayUrgentTodos.slice(0, 2).map((todo) => (
                     <div key={todo.id} className={`rounded-lg px-4 py-3 border shadow-lg ${getPriorityBackground(todo.priority)}`}>
                       <div className="flex items-center space-x-2 mb-1">
                         <span className="text-lg">{todo.priority === 'critical' ? '🚨' : '⚠️'}</span>
@@ -502,7 +549,6 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 환영 메시지 */}
         <div className="mb-8">
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
             <div className="flex justify-between items-start">
@@ -534,7 +580,6 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
           </div>
         </div>
 
-        {/* 통계 카드들 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
             <div className="flex items-center justify-between">
@@ -585,7 +630,6 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
           </div>
         </div>
 
-        {/* 오늘 할 일 섹션 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
@@ -596,8 +640,25 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                   {loading && (
                     <div className="ml-2 w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                   )}
+                  <span className="ml-2 text-sm text-gray-400">
+                    ({sortedTodayTodos.length}개)
+                    {hiddenCount > 0 && (
+                      <span className="ml-1 text-orange-400">
+                        ({hiddenCount}개 숨김)
+                      </span>
+                    )}
+                  </span>
                 </h3>
                 <div className="flex items-center space-x-3">
+                  {hiddenCount > 0 && (
+                    <button
+                      onClick={showAllHidden}
+                      className="text-xs px-3 py-1 bg-orange-500/20 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors"
+                    >
+                      숨김 해제 ({hiddenCount})
+                    </button>
+                  )}
+                  
                   <select
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value)}
@@ -618,21 +679,25 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                 </div>
               </div>
 
-              <div className="space-y-3 min-h-80 max-h-80 overflow-y-auto">
+              <div className="space-y-3 min-h-96 max-h-[32rem] overflow-y-auto">
                 {sortedTodayTodos.length > 0 ? sortedTodayTodos.map(todo => (
-                  <div key={todo.id} className={`flex items-center p-4 rounded-lg border transition-all duration-200 hover:shadow-lg ${getPriorityBackground(todo.priority)}`}>
-                    <button
-                      onClick={() => handleToggleStatus(todo.id)}
-                      className={`w-4 h-4 rounded-full mr-4 border-2 transition-all duration-200 ${
-                        todo.status === 'completed' 
-                          ? 'bg-green-500 border-green-500' 
-                          : 'border-gray-400 hover:border-green-400'
-                      }`}
-                    >
-                      {todo.status === 'completed' && (
-                        <CheckCircle className="w-4 h-4 text-white" />
-                      )}
-                    </button>
+                  <div key={todo.id} className={`flex items-center p-4 rounded-lg border transition-all duration-200 hover:shadow-lg ${getPriorityBackground(todo.priority)} ${todo.status === 'completed' ? 'opacity-60' : ''}`}>
+                    <div className="flex items-center mr-4">
+                      <button
+                        onClick={() => handleToggleStatus(todo.id)}
+                        className={`w-5 h-5 rounded-full border-2 transition-all duration-200 flex items-center justify-center ${
+                          todo.status === 'completed' 
+                            ? 'bg-green-500 border-green-500 shadow-lg shadow-green-500/30' 
+                            : 'border-gray-400 hover:border-green-400 hover:bg-green-400/10'
+                        }`}
+                      >
+                        {todo.status === 'completed' && (
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
                         <h4 className={`font-medium ${todo.status === 'completed' ? 'text-gray-400 line-through' : 'text-white'}`}>
@@ -644,11 +709,26 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          todo.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          todo.status === 'in-progress' ? 'bg-blue-500/20 text-blue-400' :
+                          'bg-orange-500/20 text-orange-400'
+                        }`}>
+                          {todo.status === 'completed' ? '✅ 완료' : 
+                           todo.status === 'in-progress' ? '🔄 진행중' : '⏸️ 대기'}
+                        </span>
                         <span className="text-xs text-gray-400">{todo.category}</span>
                         <span className="text-xs text-gray-400">📅 {todo.dueDate}</span>
                       </div>
                     </div>
                     <div className="flex space-x-1">
+                      <button 
+                        onClick={() => handleToggleHidden(todo.id)}
+                        className="p-2 text-gray-400 hover:text-yellow-400 transition-colors"
+                        title="숨기기"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                       <button 
                         onClick={() => handleDeleteTodo(todo.id)}
                         className="p-2 text-gray-400 hover:text-red-400 transition-colors"
@@ -659,18 +739,33 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                     </div>
                   </div>
                 )) : (
-                  <div className="text-center py-8 text-gray-400">
-                    <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>오늘 예정된 할 일이 없습니다</p>
+                  <div className="text-center py-12 text-gray-400">
+                    <Calendar className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg mb-2">
+                      {hiddenCount > 0 ? '모든 할 일이 숨겨져 있습니다' : '오늘 예정된 할 일이 없습니다'}
+                    </p>
+                    {hiddenCount > 0 ? (
+                      <button
+                        onClick={showAllHidden}
+                        className="text-orange-400 hover:text-orange-300 transition-colors"
+                      >
+                        {hiddenCount}개의 숨겨진 할 일 보기
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => setIsAddTodoModalOpen(true)}
+                        className="text-purple-400 hover:text-purple-300 transition-colors"
+                      >
+                        첫 번째 할 일을 추가해보세요
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* 사이드 패널 */}
           <div className="space-y-6">
-            {/* 진행률 차트 */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               <h3 className="text-lg font-semibold text-white mb-4">진행률</h3>
               <div className="space-y-3">
@@ -689,16 +784,26 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
               </div>
             </div>
 
-            {/* 긴급 할 일 */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
                 <AlertCircle className="w-5 h-5 mr-2 text-red-400" />
                 긴급 할 일
+                {displayUrgentTodos.length > 0 && (
+                  <span className="ml-2 px-2 py-1 bg-red-500/20 text-red-300 text-xs rounded-full">
+                    {displayUrgentTodos.length}
+                  </span>
+                )}
               </h3>
               <div className="space-y-3">
-                {urgentTodos.length > 0 ? urgentTodos.slice(0, 3).map(todo => (
+                {displayUrgentTodos.length > 0 ? displayUrgentTodos.slice(0, 3).map(todo => (
                   <div key={todo.id} className="flex items-center p-3 bg-red-500/10 rounded-lg border border-red-500/20">
-                    <Star className="w-4 h-4 text-red-400 mr-3" />
+                    <div className="mr-3">
+                      {todo.priority === 'critical' ? (
+                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                      ) : (
+                        <Star className="w-4 h-4 text-orange-400" />
+                      )}
+                    </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-1">
                         <p className="text-white text-sm font-medium">{todo.title}</p>
@@ -713,10 +818,16 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                     <p className="text-sm">긴급한 할 일이 없습니다</p>
                   </div>
                 )}
+                {displayUrgentTodos.length > 3 && (
+                  <div className="text-center pt-2">
+                    <span className="text-xs text-gray-400">
+                      +{displayUrgentTodos.length - 3}개 더
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* 새로고침 버튼 */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
               <button
                 onClick={refetch}
@@ -735,7 +846,6 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
         </div>
       </div>
 
-      {/* 할 일 추가 모달 */}
       {isAddTodoModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-md">
