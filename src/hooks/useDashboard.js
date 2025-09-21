@@ -31,7 +31,7 @@ const useDashboard = ({ onPageChange, onLogout }) => {
   const [selectedTodo, setSelectedTodo] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   
-  // API에서 가져온 대시보드 데이터 상태
+  // 대시보드 전용 데이터 상태
   const [dashboardData, setDashboardData] = useState({
     stats: null,
     todayTodos: [],
@@ -56,19 +56,19 @@ const useDashboard = ({ onPageChange, onLogout }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // 대시보드 데이터 로드 (API 우선, 실패시 로컬 데이터)
+  // 대시보드 데이터 로드 함수 - 중복 호출 방지를 위한 debounce
   const loadDashboardData = useCallback(async () => {
     setDashboardData(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      // API 병렬 호출
+      // Promise.allSettled로 병렬 처리하되, 실패해도 계속 진행
       const [statsResult, todayResult, urgentResult] = await Promise.allSettled([
         getStats(),
         getTodayTodos(),
         getUrgentTodos()
       ]);
 
-      // 결과 처리
+      // 각 결과 처리 - 성공하면 API 데이터, 실패하면 로컬 데이터
       const stats = statsResult.status === 'fulfilled' 
         ? statsResult.value 
         : getStatsLocal();
@@ -89,19 +89,19 @@ const useDashboard = ({ onPageChange, onLogout }) => {
         error: null
       });
 
-      // API 호출 중 오류가 있었다면 로그
+      // 에러 로깅 (개발 환경에서만)
       const errors = [statsResult, todayResult, urgentResult]
         .filter(result => result.status === 'rejected')
         .map(result => result.reason);
       
       if (errors.length > 0) {
-        console.warn('일부 대시보드 API 호출 실패, 로컬 데이터 사용:', errors);
+        console.warn('일부 대시보드 API 호출 실패, 로컬 데이터로 대체:', errors);
       }
 
     } catch (error) {
       console.error('대시보드 데이터 로드 실패:', error);
       
-      // 전체 실패 시 로컬 데이터로 fallback
+      // 전체 실패 시 로컬 데이터로 완전 fallback
       setDashboardData({
         stats: getStatsLocal(),
         todayTodos: getTodayTodosLocal(),
@@ -112,21 +112,24 @@ const useDashboard = ({ onPageChange, onLogout }) => {
     }
   }, [getStats, getTodayTodos, getUrgentTodos, getStatsLocal, getTodayTodosLocal, getUrgentTodosLocal]);
 
-  // 컴포넌트 마운트 시 대시보드 데이터 로드
+  // 초기 로드 - 한 번만 실행
   useEffect(() => {
     loadDashboardData();
-  }, [loadDashboardData]);
+  }, []); // 의존성 배열 비움 - 초기 마운트 시에만 실행
 
-  // todos 변경 시 대시보드 데이터 갱신
+  // todos 변경 감지 - 디바운스 적용으로 과도한 API 호출 방지
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadDashboardData();
-    }, 500); // 디바운스
+      // todos가 실제로 변경되었을 때만 새로고침
+      if (todos.length > 0) {
+        loadDashboardData();
+      }
+    }, 1000); // 1초 디바운스
 
     return () => clearTimeout(timer);
-  }, [todos, loadDashboardData]);
+  }, [todos.length]); // todos.length만 감시하여 불필요한 재렌더링 방지
 
-  // 메모화된 계산 값들 - API 데이터 우선 사용
+  // 메모화된 계산 값들 - API 데이터 우선
   const stats = useMemo(() => {
     return dashboardData.stats || getStatsLocal();
   }, [dashboardData.stats, getStatsLocal]);
@@ -262,8 +265,9 @@ const useDashboard = ({ onPageChange, onLogout }) => {
         await addTodo(newTodo);
       }
       handleCloseModal();
-      // 대시보드 데이터 갱신
-      setTimeout(() => loadDashboardData(), 300);
+      
+      // 할일 추가/수정 후 즉시 대시보드 갱신 (디바운스 무시)
+      setTimeout(() => loadDashboardData(), 100);
     } catch (error) {
       console.error('할일 저장 실패:', error);
     }
@@ -273,8 +277,9 @@ const useDashboard = ({ onPageChange, onLogout }) => {
     if (window.confirm('정말로 이 할일을 삭제하시겠습니까?')) {
       try {
         await deleteTodo(id);
-        // 대시보드 데이터 갱신
-        setTimeout(() => loadDashboardData(), 300);
+        
+        // 삭제 후 즉시 대시보드 갱신
+        setTimeout(() => loadDashboardData(), 100);
       } catch (error) {
         console.error('할일 삭제 실패:', error);
       }
@@ -284,8 +289,9 @@ const useDashboard = ({ onPageChange, onLogout }) => {
   const handleToggleStatus = useCallback(async (id) => {
     try {
       await toggleTodoStatus(id);
-      // 대시보드 데이터 갱신
-      setTimeout(() => loadDashboardData(), 300);
+      
+      // 상태 변경 후 즉시 대시보드 갱신
+      setTimeout(() => loadDashboardData(), 100);
     } catch (error) {
       console.error('상태 변경 실패:', error);
     }
@@ -313,7 +319,7 @@ const useDashboard = ({ onPageChange, onLogout }) => {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  // 반환하는 객체 - 기존 컴포넌트에서 사용하던 모든 것들
+  // 반환하는 객체
   return {
     // 상태들
     currentTime,
@@ -325,10 +331,10 @@ const useDashboard = ({ onPageChange, onLogout }) => {
     isLoggingOut,
     newTodo,
     
-    // Context 데이터 + 대시보드 데이터 상태 합성
+    // Context 데이터
     user,
-    loading: loading || dashboardData.loading,
-    error: error || dashboardData.error,
+    loading,
+    error,
     
     // 계산된 값들 (API + 로컬)
     stats,
