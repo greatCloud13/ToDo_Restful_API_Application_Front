@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import confetti from 'canvas-confetti';
 import { 
   CheckCircle, 
   Clock, 
@@ -92,6 +93,20 @@ class DashboardService {
 
     if (!response.ok) {
       throw new Error(`긴급 할일 조회 실패: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data.map(todo => this.mapBackendToFrontend(todo)) : [];
+  }
+
+  async getOverdueTodos() {
+    const response = await fetch(`${this.baseURL}/overdue`, {
+      method: 'GET',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`지연된 할일 조회 실패: ${response.status}`);
     }
 
     const data = await response.json();
@@ -210,6 +225,7 @@ function useDashboardData() {
     stats: null,
     todayTodos: [],
     urgentTodos: [],
+    overdueTodos: [],
     loading: true,
     error: null
   });
@@ -220,16 +236,18 @@ function useDashboardData() {
     try {
       setData(prev => ({ ...prev, loading: true, error: null }));
 
-      const [statsResult, todayResult, urgentResult] = await Promise.allSettled([
+      const [statsResult, todayResult, urgentResult, overdueResult] = await Promise.allSettled([
         dashboardService.getStats(),
         dashboardService.getTodayTodos(),
-        dashboardService.getUrgentTodos()
+        dashboardService.getUrgentTodos(),
+        dashboardService.getOverdueTodos()
       ]);
 
       setData({
         stats: statsResult.status === 'fulfilled' ? statsResult.value : null,
         todayTodos: todayResult.status === 'fulfilled' ? todayResult.value : [],
         urgentTodos: urgentResult.status === 'fulfilled' ? urgentResult.value : [],
+        overdueTodos: overdueResult.status === 'fulfilled' ? overdueResult.value : [],
         loading: false,
         error: null
       });
@@ -249,12 +267,16 @@ function useDashboardData() {
 }
 
 const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
-  const { stats, todayTodos, urgentTodos, loading, error, refetch } = useDashboardData();
+  const { stats, todayTodos, urgentTodos, overdueTodos, loading, error, refetch } = useDashboardData();
   
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isAddTodoModalOpen, setIsAddTodoModalOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState('priority');
   const [hiddenTodos, setHiddenTodos] = useState(new Set());
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedTodo, setSelectedTodo] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [previousCompletionRate, setPreviousCompletionRate] = useState(0);
   const [newTodo, setNewTodo] = useState({
     title: '',
     priority: 'medium',
@@ -269,9 +291,28 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
   };
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  if (stats) {
+    const currentRate = stats.completionRate;
+    
+    if (previousCompletionRate < 100 && currentRate === 100 && stats.total > 0) {
+      console.log('🎉 100% 달성! 컨페티 실행');
+      
+      // 진행률 박스 위치(우측 상단)에서 왼쪽 위로 발사
+      confetti({
+        particleCount: 130,
+        angle: 130,  // 왼쪽 위 방향
+        spread: 80,
+        startVelocity: 55,
+        origin: { x: 0.70, y: 0.50 }  // 우측 상단 진행률 박스 근처
+      });
+      
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    }
+    
+    setPreviousCompletionRate(currentRate);
+  }
+}, [stats, previousCompletionRate]);
 
   const displayUrgentTodos = useMemo(() => {
     let baseUrgentTodos = urgentTodos.length > 0 ? urgentTodos : [];
@@ -299,6 +340,22 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
     
     return baseUrgentTodos;
   }, [urgentTodos, todayTodos]);
+
+  // 기한이 지난 할일 - API 우선, fallback으로 로컬 필터링
+  const displayOverdueTodos = useMemo(() => {
+    // API 데이터가 있으면 우선 사용
+    if (overdueTodos && overdueTodos.length > 0) {
+      return overdueTodos.filter(todo => !hiddenTodos.has(todo.id));
+    }
+    
+    // fallback: 로컬에서 필터링
+    const today = new Date().toISOString().split('T')[0];
+    return todayTodos.filter(todo => 
+      todo.dueDate < today && 
+      todo.status !== 'completed' &&
+      !hiddenTodos.has(todo.id)
+    ).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  }, [overdueTodos, todayTodos, hiddenTodos]);
 
   const sortedTodayTodos = useMemo(() => {
     if (!todayTodos.length) return [];
@@ -388,6 +445,25 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
 
   const showAllHidden = useCallback(() => {
     setHiddenTodos(new Set());
+  }, []);
+
+  const handleViewDetail = useCallback(async (todo) => {
+    try {
+      // API로 최신 상세 데이터 가져오기
+      const detailTodo = await todoService.getTodoById(todo.id);
+      setSelectedTodo(detailTodo);
+      setIsDetailModalOpen(true);
+    } catch (error) {
+      console.error('상세 조회 실패:', error);
+      // API 실패 시 기존 데이터로 표시
+      setSelectedTodo(todo);
+      setIsDetailModalOpen(true);
+    }
+  }, []);
+
+  const handleCloseDetailModal = useCallback(() => {
+    setIsDetailModalOpen(false);
+    setSelectedTodo(null);
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -631,7 +707,9 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
+          {/* 왼쪽 컬럼: 오늘 할 일 + 기한 지난 할일 */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* 오늘 할 일 */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-semibold text-white flex items-center">
@@ -679,7 +757,7 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                 </div>
               </div>
 
-              <div className="space-y-3 min-h-96 max-h-[32rem] overflow-y-auto">
+              <div className="space-y-3 min-h-64 max-h-72 overflow-y-auto">
                 {sortedTodayTodos.length > 0 ? sortedTodayTodos.map(todo => (
                   <div key={todo.id} className={`flex items-center p-4 rounded-lg border transition-all duration-200 hover:shadow-lg ${getPriorityBackground(todo.priority)} ${todo.status === 'completed' ? 'opacity-60' : ''}`}>
                     <div className="flex items-center mr-4">
@@ -700,7 +778,10 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
-                        <h4 className={`font-medium ${todo.status === 'completed' ? 'text-gray-400 line-through' : 'text-white'}`}>
+                        <h4 
+                          onClick={() => handleViewDetail(todo)}
+                          className={`font-medium cursor-pointer hover:text-purple-400 transition-colors ${todo.status === 'completed' ? 'text-gray-400 line-through' : 'text-white'}`}
+                        >
                           {todo.title}
                         </h4>
                         {todo.memo && <FileText className="w-3 h-3 text-gray-400" />}
@@ -759,6 +840,81 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                         첫 번째 할 일을 추가해보세요
                       </button>
                     )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 밀린 할일 */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-semibold text-white flex items-center">
+                  <Clock className="w-5 h-5 mr-2 text-orange-400" />
+                  밀린 할일
+                  <span className="ml-2 text-sm text-orange-400">
+                    ({displayOverdueTodos.length}개)
+                  </span>
+                </h3>
+              </div>
+
+              <div className="space-y-3 min-h-64 max-h-72 overflow-y-auto">
+                {displayOverdueTodos.length > 0 ? displayOverdueTodos.map(todo => (
+                  <div key={todo.id} className="flex items-center p-4 rounded-lg border bg-orange-500/10 border-orange-500/30 transition-all duration-200 hover:shadow-lg">
+                    <div className="flex items-center mr-4">
+                      <button
+                        onClick={() => handleToggleStatus(todo.id)}
+                        className="w-5 h-5 rounded-full border-2 border-orange-400 hover:border-orange-300 hover:bg-orange-400/10 transition-all duration-200 flex items-center justify-center"
+                      >
+                        {todo.status === 'completed' && (
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 
+                          onClick={() => handleViewDetail(todo)}
+                          className={`font-medium cursor-pointer hover:text-purple-400 transition-colors ${todo.status === 'completed' ? 'text-gray-400 line-through' : 'text-white'}`}
+                        >
+                          {todo.title}
+                        </h4>
+                        {todo.memo && <FileText className="w-3 h-3 text-gray-400" />}
+                        <span className={`px-2 py-1 rounded-full text-xs border ${getPriorityColor(todo.priority)}`}>
+                          {getPriorityText(todo.priority)}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2 py-1 rounded-full text-xs bg-orange-500/30 text-orange-300">
+                          ⚠️ 지연됨
+                        </span>
+                        <span className="text-xs text-gray-400">{todo.category}</span>
+                        <span className="text-xs text-orange-300">📅 {todo.dueDate}</span>
+                      </div>
+                    </div>
+                    <div className="flex space-x-1">
+                      <button 
+                        onClick={() => handleToggleHidden(todo.id)}
+                        className="p-2 text-gray-400 hover:text-yellow-400 transition-colors"
+                        title="숨기기"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteTodo(todo.id)}
+                        className="p-2 text-gray-400 hover:text-red-400 transition-colors"
+                        title="삭제"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-center py-12 text-gray-400">
+                    <CheckCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p className="text-lg">밀린 할일이 없습니다!</p>
+                    <p className="text-sm mt-2 text-green-400">모든 할일을 제때 처리하고 있어요 👍</p>
                   </div>
                 )}
               </div>
@@ -936,6 +1092,95 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
                     className="flex-1 py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-colors disabled:opacity-50"
                   >
                     추가
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상세보기 모달 */}
+      {isDetailModalOpen && selectedTodo && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-md">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-white">할일 상세정보</h3>
+                <button
+                  onClick={handleCloseDetailModal}
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">제목</label>
+                  <p className="text-white text-lg font-medium">{selectedTodo.title}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">우선순위</label>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm border ${getPriorityColor(selectedTodo.priority)}`}>
+                      {getPriorityText(selectedTodo.priority)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">상태</label>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm ${
+                      selectedTodo.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                      selectedTodo.status === 'in-progress' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-orange-500/20 text-orange-400'
+                    }`}>
+                      {selectedTodo.status === 'completed' ? '✅ 완료' : 
+                       selectedTodo.status === 'in-progress' ? '🔄 진행중' : '⏸️ 대기'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">카테고리</label>
+                    <p className="text-white">{selectedTodo.category}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">마감일</label>
+                    <p className="text-white">📅 {selectedTodo.dueDate}</p>
+                  </div>
+                </div>
+
+                {selectedTodo.memo && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                      <FileText className="w-4 h-4 inline mr-1" />
+                      메모
+                    </label>
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-white whitespace-pre-wrap">{selectedTodo.memo}</p>
+                    </div>
+                  </div>
+                )}
+
+                {selectedTodo.createdAt && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">생성일</label>
+                    <p className="text-gray-300 text-sm">
+                      {new Date(selectedTodo.createdAt).toLocaleString('ko-KR')}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex space-x-3 mt-6">
+                  <button
+                    onClick={handleCloseDetailModal}
+                    className="flex-1 py-3 px-4 bg-gray-500/20 text-gray-300 rounded-lg hover:bg-gray-500/30 transition-colors"
+                  >
+                    닫기
                   </button>
                 </div>
               </div>
