@@ -65,6 +65,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
   const [selectedTodo, setSelectedTodo] = useState(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [urgentTodos, setUrgentTodos] = useState([]);
 
   // 새 할일/수정 폼 데이터 (메모 필드 추가)
   const [formData, setFormData] = useState({
@@ -76,7 +77,19 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     memo: '' // 메모 필드 추가
   });
 
-  const urgentTodos = getUrgentTodos();
+  useEffect(() => {
+    const loadUrgentTodos = async () => {
+      try {
+        const todos = await getUrgentTodos();
+        setUrgentTodos(todos);
+      } catch (error) {
+        console.error('긴급 할일 로드 실패:', error);
+        setUrgentTodos([]);
+      }
+    };
+    
+    loadUrgentTodos();
+  }, [getUrgentTodos]);
 
   // 메뉴 아이템들
   const menuItems = [
@@ -86,6 +99,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     { id: 'analytics', name: '통계', icon: TrendingUp },
     { id: 'settings', name: '설정', icon: Settings }
   ];
+  
 
   // 필터링 및 검색된 할일 목록
   const filteredAndSearchedTodos = useMemo(() => {
