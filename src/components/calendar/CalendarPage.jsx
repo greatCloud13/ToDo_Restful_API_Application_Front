@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   CheckCircle, 
   Calendar, 
@@ -12,32 +12,26 @@ import {
   ChevronRight,
   Plus,
   Clock,
-  AlertCircle,
-  Target,
   X,
   Edit,
   Trash2
 } from 'lucide-react';
 import { useAppContext } from '../../contexts/AppContext';
 import { authService } from '../../services/authService';
+import { useCalendar } from '../../hooks/useCalendar';
 
 const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
   const {
-    // Context 상태
     todos,
     user,
-    loading,
-    error,
-    // Context 함수들
+    loading: contextLoading,
+    error: contextError,
     addTodo,
     updateTodo,
     deleteTodo,
     toggleTodoStatus,
     clearError,
-    // 유틸리티 함수들
-    getTodosByDate,
-    getUrgentTodos,
-    getStats
+    getTodosByDate
   } = useAppContext();
 
   // 로컬 상태들
@@ -53,9 +47,19 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     dueDate: new Date().toISOString().split('T')[0]
   });
 
-  // Context에서 데이터 가져오기
-  const stats = getStats();
-  const urgentTodos = getUrgentTodos();
+  // Custom Hook으로 데이터 관리 (API 기반)
+  const {
+    selectedDateTodos,
+    stats,
+    urgentTodos,
+    isLoading: dataLoading,
+    error: dataError,
+    refresh: refreshData
+  } = useCalendar(selectedDate);
+
+  // 통합 로딩/에러 상태
+  const loading = contextLoading || dataLoading;
+  const error = contextError || dataError;
 
   // 메뉴 아이템들
   const menuItems = [
@@ -68,43 +72,32 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
 
   // 우선순위별 색상
   const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'critical': return 'bg-red-500';
-      case 'high': return 'bg-orange-500';
-      case 'medium': return 'bg-yellow-500';
-      case 'low': return 'bg-green-500';
-      case 'minimal': return 'bg-blue-500';
-      default: return 'bg-gray-500';
-    }
-  };
-
-  const getPriorityText = (priority) => {
-    switch (priority) {
-      case 'critical': return '매우긴급';
-      case 'high': return '높음';
-      case 'medium': return '보통';
-      case 'low': return '낮음';
-      case 'minimal': return '최소';
-      default: return '미정';
-    }
+    const colors = {
+      critical: 'bg-red-500',
+      high: 'bg-orange-500',
+      medium: 'bg-yellow-500',
+      low: 'bg-green-500',
+      minimal: 'bg-blue-500'
+    };
+    return colors[priority] || 'bg-gray-500';
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed': return 'text-green-400 bg-green-500/10';
-      case 'in-progress': return 'text-blue-400 bg-blue-500/10';
-      case 'pending': return 'text-orange-400 bg-orange-500/10';
-      default: return 'text-gray-400 bg-gray-500/10';
-    }
+    const colors = {
+      completed: 'text-green-400 bg-green-500/10',
+      'in-progress': 'text-blue-400 bg-blue-500/10',
+      pending: 'text-orange-400 bg-orange-500/10'
+    };
+    return colors[status] || 'text-gray-400 bg-gray-500/10';
   };
 
   const getStatusText = (status) => {
-    switch (status) {
-      case 'completed': return '완료';
-      case 'in-progress': return '진행중';
-      case 'pending': return '대기';
-      default: return '미정';
-    }
+    const texts = {
+      completed: '완료',
+      'in-progress': '진행중',
+      pending: '대기'
+    };
+    return texts[status] || '미정';
   };
 
   // 달력 관련 함수들
@@ -149,43 +142,31 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
   };
 
   const handleLogout = async () => {
-      if (isLoggingOut) return; // 중복 실행 방지
-  
-      try {
-        setIsLoggingOut(true);
-        
-        // 1순위: props로 전달된 onLogout 사용 (권장)
-        if (onLogout && typeof onLogout === 'function') {
-          console.log('Props onLogout 함수 사용');
-          await onLogout();
-          return;
-        }
-        
-        // 2순위: authService 직접 사용
-        console.log('authService 직접 사용');
-        await authService.logout();
-        
-        // 로그아웃 성공 후 페이지 새로고침 (마지막 보장책)
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-        
-      } catch (error) {
-        console.error('로그아웃 처리 중 오류:', error);
-        
-        // 오류 발생 시 강제 정리 및 새로고침
-        try {
-          authService.clearAllTokens();
-        } catch (clearError) {
-          console.error('토큰 정리 실패:', clearError);
-        }
-        
-        // 최후의 수단: 강제 새로고침
-        window.location.reload();
-      } finally {
-        setIsLoggingOut(false);
+    if (isLoggingOut) return;
+    
+    try {
+      setIsLoggingOut(true);
+      
+      if (onLogout && typeof onLogout === 'function') {
+        await onLogout();
+        return;
       }
-    };
+      
+      await authService.logout();
+      setTimeout(() => window.location.reload(), 500);
+      
+    } catch (error) {
+      console.error('로그아웃 처리 중 오류:', error);
+      try {
+        authService.clearAllTokens();
+      } catch (clearError) {
+        console.error('토큰 정리 실패:', clearError);
+      }
+      window.location.reload();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   const handleMenuClick = (menuId) => {
     if (onPageChange) {
@@ -239,16 +220,11 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
 
   const handleNewTodoChange = (e) => {
     const { name, value } = e.target;
-    setNewTodo(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setNewTodo(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmitTodo = async () => {
-    if (!newTodo.title.trim()) {
-      return;
-    }
+    if (!newTodo.title.trim()) return;
 
     try {
       if (editingTodo) {
@@ -257,6 +233,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
         await addTodo(newTodo);
       }
       handleCloseModal();
+      refreshData(); // 데이터 새로고침
     } catch (error) {
       console.error('할일 저장 실패:', error);
     }
@@ -266,6 +243,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     if (window.confirm('정말로 이 할일을 삭제하시겠습니까?')) {
       try {
         await deleteTodo(id);
+        refreshData();
       } catch (error) {
         console.error('할일 삭제 실패:', error);
       }
@@ -275,6 +253,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
   const handleToggleStatus = async (id) => {
     try {
       await toggleTodoStatus(id);
+      refreshData();
     } catch (error) {
       console.error('상태 변경 실패:', error);
     }
@@ -289,22 +268,16 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     const days = [];
     const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
 
-    // 요일 헤더
     const dayHeaders = weekDays.map(day => (
       <div key={day} className="text-center text-gray-400 text-sm font-medium py-3">
         {day}
       </div>
     ));
 
-    // 빈 날짜들 (이전 달)
     for (let i = 0; i < firstDay; i++) {
-      days.push(
-        <div key={`empty-${i}`} className="aspect-square p-2">
-        </div>
-      );
+      days.push(<div key={`empty-${i}`} className="aspect-square p-2"></div>);
     }
 
-    // 현재 달의 날짜들
     for (let day = 1; day <= daysInMonth; day++) {
       const dateString = formatDate(year, month, day);
       const dayTodos = getTodosByDate(dateString);
@@ -332,7 +305,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
               {day}
             </div>
             <div className="flex-1 space-y-1">
-              {dayTodos.slice(0, 2).map((todo, index) => (
+              {dayTodos.slice(0, 2).map((todo) => (
                 <div
                   key={todo.id}
                   className={`w-full h-1.5 rounded-full ${getPriorityColor(todo.priority)} opacity-80`}
@@ -358,14 +331,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     );
   };
 
-  // 선택된 날짜의 할 일들
-  const selectedDateString = formatDate(
-    selectedDate.getFullYear(), 
-    selectedDate.getMonth(), 
-    selectedDate.getDate()
-  );
-  const selectedDateTodos = getTodosByDate(selectedDateString);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* 네비게이션 헤더 */}
@@ -380,7 +345,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                 <h1 className="text-xl font-bold text-white">ToDo App</h1>
               </div>
 
-              {/* 대메뉴 */}
               <div className="hidden md:flex space-x-1">
                 {menuItems.map((item) => {
                   const Icon = item.icon;
@@ -506,7 +470,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                 })}
               </h3>
               
-              {/* 할 일 목록 - 고정 높이 + 스크롤 */}
               <div className="space-y-3 min-h-56 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
                 {selectedDateTodos.length > 0 ? selectedDateTodos.map(todo => (
                   <div key={todo.id} className="p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors">
@@ -563,7 +526,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                 )}
               </div>
 
-              {/* 할 일 추가 버튼 */}
               <button 
                 onClick={handleAddTodo}
                 disabled={loading}
