@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { todoService } from '../services/todoService';
 import { dashboardService } from '../services/dashboardService';
+import { calendarService } from '../services/calendarService';
 
 // Context 생성
 const AppContext = createContext();
 
-// 초기 상태
+// 초기 상태 (먼저 정의!)
 const initialState = {
   todos: [],
   user: {
@@ -13,7 +14,17 @@ const initialState = {
     authorities: window.authTokens?.authorities || ["ROLE_ADMIN"]
   },
   loading: false,
-  error: null
+  error: null,
+  filter: {
+    status: 'all',
+    priority: 'all',
+    category: 'all',
+    dateRange: null
+  },
+  sort: {
+    field: 'dueDate',
+    direction: 'asc'
+  }
 };
 
 // 액션 타입들
@@ -25,10 +36,13 @@ export const actionTypes = {
   UPDATE_TODO: 'UPDATE_TODO',
   DELETE_TODO: 'DELETE_TODO',
   TOGGLE_TODO: 'TOGGLE_TODO',
-  SET_USER: 'SET_USER'
+  SET_USER: 'SET_USER',
+  SET_FILTER: 'SET_FILTER',
+  SET_SORT: 'SET_SORT',
+  BULK_UPDATE_TODOS: 'BULK_UPDATE_TODOS'
 };
 
-// Reducer 함수
+// Reducer 함수 (initialState 다음에 정의!)
 const appReducer = (state, action) => {
   switch (action.type) {
     case actionTypes.SET_LOADING:
@@ -76,6 +90,21 @@ const appReducer = (state, action) => {
     
     case actionTypes.SET_USER:
       return { ...state, user: action.payload };
+
+    case actionTypes.SET_FILTER:
+      return { ...state, filter: { ...state.filter, ...action.payload } };
+    
+    case actionTypes.SET_SORT:
+      return { ...state, sort: action.payload };
+    
+    case actionTypes.BULK_UPDATE_TODOS:
+      return {
+        ...state,
+        todos: state.todos.map(todo => {
+          const update = action.payload.find(u => u.id === todo.id);
+          return update ? { ...todo, ...update.data } : todo;
+        })
+      };
     
     default:
       return state;
@@ -93,22 +122,28 @@ export const AppProvider = ({ children }) => {
 
   // 사용자 정보 업데이트 감지
   useEffect(() => {
-    const updateUser = () => {
-      if (window.authTokens) {
+  const updateUser = () => {
+    if (window.authTokens) {
+      const newUser = {
+        username: window.authTokens.username,
+        authorities: window.authTokens.authorities
+      };
+      
+      // 실제로 변경된 경우에만 업데이트
+      if (JSON.stringify(newUser) !== JSON.stringify(state.user)) {
         dispatch({
           type: actionTypes.SET_USER,
-          payload: {
-            username: window.authTokens.username,
-            authorities: window.authTokens.authorities
-          }
+          payload: newUser
         });
       }
-    };
+    }
+  };
 
-    updateUser();
-    const interval = setInterval(updateUser, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  updateUser();
+  // 1초 간격을 3초로 늘리거나 아예 제거
+  const interval = setInterval(updateUser, 3000); // 3초로 변경
+  return () => clearInterval(interval);
+}, [state.user]); // 의존성 배열 추가
 
   // 액션 함수들
   const loadTodos = async () => {
@@ -168,56 +203,80 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // 대시보드 전용 API 함수들 - dashboardService 사용
-  const getTodayTodos = useCallback(async () => {
-    try {
-      return await dashboardService.getTodayTodos();
-    } catch (error) {
-      console.error('오늘 할일 조회 실패:', error);
-      // 실패 시 로컬 데이터로 fallback
-      const today = new Date().toISOString().split('T')[0];
-      return state.todos.filter(todo => todo.dueDate === today);
-    }
+  // 필터 및 정렬 함수들
+  const setFilter = (filterData) => {
+    dispatch({ type: actionTypes.SET_FILTER, payload: filterData });
+  };
+
+  const setSort = (sortData) => {
+    dispatch({ type: actionTypes.SET_SORT, payload: sortData });
+  };
+
+  // 대시보드 전용 API 함수들
+  const getTodayTodos = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return state.todos.filter(todo => todo.dueDate === today);
   }, [state.todos]);
 
-  const getUrgentTodos = useCallback(async () => {
-    try {
-      return await dashboardService.getUrgentTodos();
-    } catch (error) {
-      console.error('긴급 할일 조회 실패:', error);
-      // 실패 시 로컬 데이터로 fallback
-      return state.todos.filter(todo => 
-        (todo.priority === 'critical' || todo.priority === 'high') && 
-        todo.status !== 'completed'
-      );
-    }
+  const getUrgentTodos = useCallback(() => {
+    return state.todos.filter(todo => 
+      (todo.priority === 'critical' || todo.priority === 'high') && 
+      todo.status !== 'completed'
+    );
   }, [state.todos]);
 
-  const getStats = useCallback(async () => {
-    try {
-      return await dashboardService.getStats();
-    } catch (error) {
-      console.error('통계 조회 실패:', error);
-      // 실패 시 로컬 데이터로 fallback
-      const total = state.todos.length;
-      const completed = state.todos.filter(todo => todo.status === 'completed').length;
-      const pending = state.todos.filter(todo => todo.status === 'pending').length;
-      const inProgress = state.todos.filter(todo => todo.status === 'in-progress').length;
-      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-      
-      return {
-        total,
-        completed,
-        pending,
-        inProgress,
-        completionRate
-      };
-    }
+  const getStats = useCallback(() => {
+    const total = state.todos.length;
+    const completed = state.todos.filter(todo => todo.status === 'completed').length;
+    const pending = state.todos.filter(todo => todo.status === 'pending').length;
+    const inProgress = state.todos.filter(todo => todo.status === 'in-progress').length;
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    return {
+      total,
+      completed,
+      pending,
+      inProgress,
+      completionRate
+    };
   }, [state.todos]);
 
   const clearError = () => {
     dispatch({ type: actionTypes.SET_ERROR, payload: null });
   };
+
+  // 필터링된 할일 목록 계산
+  const getFilteredTodos = useCallback(() => {
+    let filtered = [...state.todos];
+    
+    // 상태 필터
+    if (state.filter.status !== 'all') {
+      filtered = filtered.filter(todo => todo.status === state.filter.status);
+    }
+    
+    // 우선순위 필터
+    if (state.filter.priority !== 'all') {
+      filtered = filtered.filter(todo => todo.priority === state.filter.priority);
+    }
+    
+    // 카테고리 필터
+    if (state.filter.category !== 'all') {
+      filtered = filtered.filter(todo => todo.category === state.filter.category);
+    }
+    
+    // 정렬
+    filtered.sort((a, b) => {
+      const { field, direction } = state.sort;
+      const aValue = a[field];
+      const bValue = b[field];
+      
+      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    return filtered;
+  }, [state.todos, state.filter, state.sort]);
 
   // Context value
   const value = {
@@ -231,43 +290,18 @@ export const AppProvider = ({ children }) => {
     deleteTodo,
     toggleTodoStatus,
     clearError,
+    setFilter,
+    setSort,
 
-    // 대시보드 API 함수들
+    // 계산된 값들
     getTodayTodos,
     getUrgentTodos,
     getStats,
-
-    // 로컬 유틸리티 함수들 (fallback용)
-    getTodayTodosLocal: () => {
-      const today = new Date().toISOString().split('T')[0];
-      return state.todos.filter(todo => todo.dueDate === today);
-    },
+    getFilteredTodos,
     
-    getUrgentTodosLocal: () => {
-      return state.todos.filter(todo => 
-        (todo.priority === 'critical' || todo.priority === 'high') && 
-        todo.status !== 'completed'
-      );
-    },
-    
+    // 날짜별 할일 조회
     getTodosByDate: (date) => {
       return state.todos.filter(todo => todo.dueDate === date);
-    },
-    
-    getStatsLocal: () => {
-      const total = state.todos.length;
-      const completed = state.todos.filter(todo => todo.status === 'completed').length;
-      const pending = state.todos.filter(todo => todo.status === 'pending').length;
-      const inProgress = state.todos.filter(todo => todo.status === 'in-progress').length;
-      const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-      
-      return {
-        total,
-        completed,
-        pending,
-        inProgress,
-        completionRate
-      };
     }
   };
 

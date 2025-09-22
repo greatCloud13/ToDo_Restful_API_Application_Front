@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   TrendingUp, 
   Calendar, 
@@ -28,79 +29,95 @@ import { authService } from '../../services/authService';
 
 const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) => {
   const {
-    // Context 상태
     todos,
     user,
-    loading,
-    // 유틸리티 함수들
-    getStats,
-    getUrgentTodos
+    loading
   } = useAppContext();
 
   // 로컬 상태
-  const [selectedPeriod, setSelectedPeriod] = useState('week'); // week, month, year
+  const [selectedPeriod, setSelectedPeriod] = useState('week');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // 메뉴 아이템들
-  const menuItems = [
+  // todos 길이만 의존성으로 사용 (객체 전체가 아닌 길이로 최적화)
+  const todosLength = todos.length;
+  const todosString = JSON.stringify(todos); // 또는 이렇게 해도 됨
+
+  // 메뉴 아이템들 (메모이제이션)
+  const menuItems = useMemo(() => [
     { id: 'dashboard', name: '대시보드', icon: Activity },
     { id: 'todos', name: '할 일 관리', icon: CheckCircle },
     { id: 'calendar', name: '캘린더', icon: Calendar },
     { id: 'analytics', name: '통계', icon: TrendingUp },
     { id: 'settings', name: '설정', icon: Settings }
-  ];
+  ], []);
 
-  const urgentTodos = getUrgentTodos();
-  const stats = getStats();
+  // 긴급 할일과 통계를 메모이제이션
+  const urgentTodos = useMemo(() => {
+    return todos.filter(todo => 
+      (todo.priority === 'critical' || todo.priority === 'high') && 
+      todo.status !== 'completed'
+    );
+  }, [todosString]); // todos 대신 todosString 사용
 
-  // 이벤트 핸들러들
-  const handleLogout = async () => {
-      if (isLoggingOut) return; // 중복 실행 방지
-  
-      try {
-        setIsLoggingOut(true);
-        
-        // 1순위: props로 전달된 onLogout 사용 (권장)
-        if (onLogout && typeof onLogout === 'function') {
-          console.log('Props onLogout 함수 사용');
-          await onLogout();
-          return;
-        }
-        
-        // 2순위: authService 직접 사용
-        console.log('authService 직접 사용');
-        await authService.logout();
-        
-        // 로그아웃 성공 후 페이지 새로고침 (마지막 보장책)
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-        
-      } catch (error) {
-        console.error('로그아웃 처리 중 오류:', error);
-        
-        // 오류 발생 시 강제 정리 및 새로고침
-        try {
-          authService.clearAllTokens();
-        } catch (clearError) {
-          console.error('토큰 정리 실패:', clearError);
-        }
-        
-        // 최후의 수단: 강제 새로고침
-        window.location.reload();
-      } finally {
-        setIsLoggingOut(false);
-      }
+  const stats = useMemo(() => {
+    const total = todos.length;
+    const completed = todos.filter(todo => todo.status === 'completed').length;
+    const pending = todos.filter(todo => todo.status === 'pending').length;
+    const inProgress = todos.filter(todo => todo.status === 'in-progress').length;
+    const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    
+    return {
+      total,
+      completed,
+      pending,
+      inProgress,
+      completionRate
     };
+  }, [todosString]);
 
-  const handleMenuClick = (menuId) => {
+  // 이벤트 핸들러들 (메모이제이션)
+  const handleLogout = useCallback(async () => {
+    if (isLoggingOut) return;
+
+    try {
+      setIsLoggingOut(true);
+      
+      if (onLogout && typeof onLogout === 'function') {
+        console.log('Props onLogout 함수 사용');
+        await onLogout();
+        return;
+      }
+      
+      console.log('authService 직접 사용');
+      await authService.logout();
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+      
+    } catch (error) {
+      console.error('로그아웃 처리 중 오류:', error);
+      
+      try {
+        authService.clearAllTokens();
+      } catch (clearError) {
+        console.error('토큰 정리 실패:', clearError);
+      }
+      
+      window.location.reload();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }, [isLoggingOut, onLogout]);
+
+  const handleMenuClick = useCallback((menuId) => {
     if (onPageChange) {
       onPageChange(menuId);
     }
-  };
+  }, [onPageChange]);
 
-  // 통계 데이터 계산
+  // 통계 데이터 계산 (최적화된 버전)
   const analyticsData = useMemo(() => {
     // 우선순위별 분포
     const priorityDistribution = [
@@ -145,6 +162,7 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
     // 요일별 생산성
     const weekdayProductivity = ['일', '월', '화', '수', '목', '금', '토'].map((day, index) => {
       const dayTodos = todos.filter(t => {
+        if (!t.dueDate) return false;
         const todoDate = new Date(t.dueDate);
         return todoDate.getDay() === index;
       });
@@ -159,11 +177,12 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
 
     // 지연된 할일 분석
     const overdueTodos = todos.filter(t => {
+      if (!t.dueDate) return false;
       const dueDate = new Date(t.dueDate);
       return dueDate < today && t.status !== 'completed';
     });
 
-    // 평균 완료 시간 (더미 데이터 - 실제로는 백엔드에서 계산)
+    // 평균 완료 시간 (더미 데이터)
     const avgCompletionTime = {
       critical: 1.2,
       high: 2.5,
@@ -180,9 +199,9 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
       overdueTodos,
       avgCompletionTime
     };
-  }, [todos]);
+  }, [todosString]); // todos 대신 todosString 사용
 
-  // 인사이트 계산
+  // 인사이트 계산 (최적화된 버전)
   const insights = useMemo(() => {
     const data = analyticsData;
     
@@ -220,8 +239,8 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
     };
   }, [analyticsData, stats]);
 
-  // Custom Tooltip
-  const CustomTooltip = ({ active, payload, label }) => {
+  // Custom Tooltip (메모이제이션)
+  const CustomTooltip = useCallback(({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-gray-800/90 backdrop-blur-sm p-3 rounded-lg border border-white/20">
@@ -235,14 +254,14 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
       );
     }
     return null;
-  };
+  }, []);
 
-  // 기간 선택 옵션
-  const periodOptions = [
+  // 기간 선택 옵션 (메모이제이션)
+  const periodOptions = useMemo(() => [
     { value: 'week', label: '주간' },
     { value: 'month', label: '월간' },
     { value: 'year', label: '연간' }
-  ];
+  ], []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
