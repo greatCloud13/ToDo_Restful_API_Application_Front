@@ -19,27 +19,17 @@ import {
 import { useAppContext } from '../../contexts/AppContext';
 import { authService } from '../../services/authService';
 import { useCalendar } from '../../hooks/useCalendar';
+import { todoService } from '../../services/todoService';
 
 const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
-  const {
-    todos,
-    user,
-    loading: contextLoading,
-    error: contextError,
-    addTodo,
-    updateTodo,
-    deleteTodo,
-    toggleTodoStatus,
-    clearError,
-    getTodosByDate
-  } = useAppContext();
-
   // 로컬 상태들
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isAddTodoModalOpen, setIsAddTodoModalOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false); // 상세정보 모달
+  const [selectedTodo, setSelectedTodo] = useState(null); // 선택된 할일
   const [newTodo, setNewTodo] = useState({
     title: '',
     priority: 'medium',
@@ -49,17 +39,29 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
 
   // Custom Hook으로 데이터 관리 (API 기반)
   const {
+    monthTodos,
     selectedDateTodos,
     stats,
     urgentTodos,
-    isLoading: dataLoading,
-    error: dataError,
-    refresh: refreshData
-  } = useCalendar(selectedDate);
+    isLoading,
+    error,
+    getTodosByDate,
+    refresh
+  } = useCalendar(selectedDate, currentDate);
+
+  const {
+    todos,
+    user,
+    addTodo,
+    updateTodo,
+    deleteTodo,
+    toggleTodoStatus,
+    clearError,
+    loading: contextLoading
+  } = useAppContext();
 
   // 통합 로딩/에러 상태
-  const loading = contextLoading || dataLoading;
-  const error = contextError || dataError;
+  const loading = contextLoading || isLoading;
 
   // 메뉴 아이템들
   const menuItems = [
@@ -80,6 +82,17 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
       minimal: 'bg-blue-500'
     };
     return colors[priority] || 'bg-gray-500';
+  };
+
+  const getPriorityText = (priority) => {
+    const texts = {
+      critical: '매우긴급',
+      high: '높음',
+      medium: '보통',
+      low: '낮음',
+      minimal: '최소'
+    };
+    return texts[priority] || '미정';
   };
 
   const getStatusColor = (status) => {
@@ -139,6 +152,24 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     const today = new Date();
     setCurrentDate(today);
     setSelectedDate(today);
+  };
+
+  // 상세정보 보기 핸들러
+  const handleViewDetail = async (todo) => {
+    try {
+      const detailTodo = await todoService.getTodoById(todo.id);
+      setSelectedTodo(detailTodo);
+      setIsDetailModalOpen(true);
+    } catch (error) {
+      console.error('할일 상세 조회 실패:', error);
+      setSelectedTodo(todo);
+      setIsDetailModalOpen(true);
+    }
+  };
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedTodo(null);
   };
 
   const handleLogout = async () => {
@@ -233,7 +264,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
         await addTodo(newTodo);
       }
       handleCloseModal();
-      refreshData(); // 데이터 새로고침
+      refresh(); // 데이터 새로고침
     } catch (error) {
       console.error('할일 저장 실패:', error);
     }
@@ -243,7 +274,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     if (window.confirm('정말로 이 할일을 삭제하시겠습니까?')) {
       try {
         await deleteTodo(id);
-        refreshData();
+        refresh();
       } catch (error) {
         console.error('할일 삭제 실패:', error);
       }
@@ -253,7 +284,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
   const handleToggleStatus = async (id) => {
     try {
       await toggleTodoStatus(id);
-      refreshData();
+      refresh();
     } catch (error) {
       console.error('상태 변경 실패:', error);
     }
@@ -280,7 +311,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateString = formatDate(year, month, day);
-      const dayTodos = getTodosByDate(dateString);
+      const dayTodos = getTodosByDate ? getTodosByDate(dateString) : [];
       const isCurrentDay = isToday(year, month, day);
       const isSelected = isSelectedDate(year, month, day);
 
@@ -487,9 +518,13 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                             <CheckCircle className="w-4 h-4 text-white" />
                           )}
                         </button>
-                        <h4 className={`text-sm font-medium flex-1 ${
-                          todo.status === 'completed' ? 'text-gray-400 line-through' : 'text-white'
-                        }`}>
+                        <h4 
+                          className={`text-sm font-medium flex-1 cursor-pointer hover:text-purple-300 transition-colors ${
+                            todo.status === 'completed' ? 'text-gray-400 line-through' : 'text-white'
+                          }`}
+                          onClick={() => handleViewDetail(todo)}
+                          title="클릭하여 상세보기"
+                        >
                           {todo.title}
                         </h4>
                       </div>
@@ -685,6 +720,155 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                     {loading ? '처리중...' : (editingTodo ? '수정' : '추가')}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 할 일 상세정보 모달 */}
+      {isDetailModalOpen && selectedTodo && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-lg">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">할 일 상세정보</h3>
+                <button
+                  onClick={handleCloseDetailModal}
+                  className="p-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* 제목 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">제목</label>
+                  <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                    <p className={`text-white ${selectedTodo.status === 'completed' ? 'line-through text-gray-400' : ''}`}>
+                      {selectedTodo.title}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 메모 */}
+                {selectedTodo.memo && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">메모</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 whitespace-pre-wrap">{selectedTodo.memo}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 상태, 우선순위, 카테고리 */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">상태</label>
+                    <div className={`p-2 rounded-lg text-center text-xs font-medium ${getStatusColor(selectedTodo.status)}`}>
+                      {getStatusText(selectedTodo.status)}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">우선순위</label>
+                    <div className="flex items-center justify-center p-2 bg-white/5 rounded-lg">
+                      <div className={`w-3 h-3 rounded-full ${getPriorityColor(selectedTodo.priority)} mr-2`}></div>
+                      <span className="text-gray-200 text-xs">
+                        {getPriorityText(selectedTodo.priority)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">카테고리</label>
+                    <div className="p-2 bg-white/5 rounded-lg text-center">
+                      <span className="text-gray-200 text-xs">{selectedTodo.category}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 날짜 정보 */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">마감일</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">{selectedTodo.dueDate}</p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">생성일</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">
+                        {selectedTodo.createdAt ? new Date(selectedTodo.createdAt).toLocaleDateString('ko-KR') : '-'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 완료일 (완료된 경우만) */}
+                {selectedTodo.status === 'completed' && selectedTodo.doneAt && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">완료일</label>
+                    <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                      <p className="text-green-300 text-sm">
+                        {new Date(selectedTodo.doneAt).toLocaleString('ko-KR')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 사용자 정보 */}
+                {selectedTodo.username && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">작성자</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">{selectedTodo.username}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 액션 버튼들 */}
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    handleEditTodo(selectedTodo);
+                    handleCloseDetailModal();
+                  }}
+                  className="flex-1 py-3 px-4 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center justify-center"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  수정
+                </button>
+                
+                <button
+                  onClick={() => {
+                    handleToggleStatus(selectedTodo.id);
+                    handleCloseDetailModal();
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-lg transition-colors flex items-center justify-center ${
+                    selectedTodo.status === 'completed'
+                      ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
+                      : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  {selectedTodo.status === 'completed' ? '미완료로 변경' : '완료 처리'}
+                </button>
+                
+                <button
+                  onClick={() => {
+                    handleDeleteTodo(selectedTodo.id);
+                    handleCloseDetailModal();
+                  }}
+                  className="flex-1 py-3 px-4 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center justify-center"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  삭제
+                </button>
               </div>
             </div>
           </div>
