@@ -44,20 +44,25 @@ export const useAnalytics = (period = 'week') => {
     };
   };
 
-  // Mock 데이터 생성
+  // Mock 데이터 생성 (trends 랜덤 생성 제거)
   const generateMockData = () => {
     return {
-      trends: {
-        data: Array.from({ length: 7 }, (_, i) => {
-          const date = new Date();
-          date.setDate(date.getDate() - (6 - i));
-          return {
-            date: `${date.getMonth() + 1}/${date.getDate()}`,
-            completed: Math.floor(Math.random() * 10) + 1,
-            total: Math.floor(Math.random() * 15) + 5
-          };
-        })
+      // 우선순위별 분포 Mock 데이터 (API 연동 완료로 제거 가능)
+      distribution: {
+        priorityDistribution: [
+          { priority: 'VERY_HIGH', count: 5 },
+          { priority: 'HIGH', count: 8 },
+          { priority: 'MIDDLE', count: 10 }, // MEDIUM -> MIDDLE로 수정
+          { priority: 'LOW', count: 3 },
+          { priority: 'VERY_LOW', count: 2 }
+        ],
+        categoryDistribution: [
+          { categoryName: '업무', completed: 10, inProgress: 3, pending: 2, completionRate: 67 },
+          { categoryName: '개발', completed: 8, inProgress: 1, pending: 1, completionRate: 80 },
+          { categoryName: '개인', completed: 3, inProgress: 0, pending: 0, completionRate: 100 }
+        ]
       },
+      // trends 랜덤 생성 제거 - API에서만 데이터 가져오기
       productivity: {
         weekdayStats: ['일', '월', '화', '수', '목', '금', '토'].map((day, index) => ({
           dayOfWeek: index,
