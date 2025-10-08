@@ -9,21 +9,12 @@ import {
   LogOut,
   Bell,
   BarChart3,
-  PieChart,
-  Target,
-  Clock,
-  Award,
-  AlertTriangle,
-  TrendingDown,
-  Users,
-  Zap,
-  Filter,
   RefreshCw
 } from 'lucide-react';
 import { 
-  LineChart, Line, BarChart, Bar, PieChart as RePieChart, Pie, 
+  BarChart, Bar, PieChart as RePieChart, Pie, 
   Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
-  ResponsiveContainer, RadialBarChart, RadialBar, AreaChart, Area 
+  ResponsiveContainer, AreaChart, Area 
 } from 'recharts';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import { authService } from '../../services/authService';
@@ -34,19 +25,16 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
   // 주간으로 고정
   const selectedPeriod = 'week';
 
-  // useAnalytics 훅 사용법 수정
+  // useAnalytics 훅 사용
   const {
     summary,
     trends,
     distribution,
-    productivity,
-    insights,
     loading,
     error,
-    lastUpdated,
-    refresh, // refreshAnalytics -> refresh로 수정
-    isStale  // isDataStale -> isStale로 수정
-  } = useAnalytics(selectedPeriod); // 주간으로 고정
+    refresh,
+    isStale
+  } = useAnalytics(selectedPeriod);
 
   // 메뉴 아이템들
   const menuItems = [
@@ -62,7 +50,7 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
     'VERY_HIGH': { label: '매우높음', color: '#dc2626' },
     'HIGH': { label: '높음', color: '#ea580c' },
     'MEDIUM': { label: '중간', color: '#ca8a04' },
-    'MIDDLE': { label: '중간', color: '#ca8a04' }, // API 응답에서 MIDDLE 사용
+    'MIDDLE': { label: '중간', color: '#ca8a04' },
     'LOW': { label: '낮음', color: '#16a34a' },
     'VERY_LOW': { label: '매우낮음', color: '#2563eb' }
   };
@@ -94,7 +82,7 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
   }, [onPageChange]);
 
   const handleRefresh = useCallback(() => {
-    refresh(); // refreshAnalytics -> refresh로 수정
+    refresh();
   }, [refresh]);
 
   // Custom Tooltip
@@ -114,16 +102,13 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
     return null;
   }, []);
 
-
-
   // API 데이터를 차트에 맞게 변환하는 함수들
   const getPriorityChartData = () => {
     if (!distribution?.priorityDistribution) {
-      // Mock 데이터
       return [
         { name: 'VERY_HIGH', label: '매우높음', count: 5, color: '#dc2626' },
         { name: 'HIGH', label: '높음', count: 8, color: '#ea580c' },
-        { name: 'MEDIUM', label: '중간', count: 10, color: '#ca8a04' },
+        { name: 'MIDDLE', label: '중간', count: 10, color: '#ca8a04' },
         { name: 'LOW', label: '낮음', count: 3, color: '#16a34a' },
         { name: 'VERY_LOW', label: '매우낮음', count: 2, color: '#2563eb' }
       ];
@@ -139,7 +124,6 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
 
   const getCategoryChartData = () => {
     if (!distribution?.categoryDistribution) {
-      // Mock 데이터
       return [
         { 
           name: '업무', 
@@ -148,22 +132,6 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
           pending: 2, 
           completionRate: 67,
           total: 15
-        },
-        { 
-          name: '개발', 
-          completed: 8, 
-          inProgress: 1, 
-          pending: 1, 
-          completionRate: 80,
-          total: 10
-        },
-        { 
-          name: '개인', 
-          completed: 3, 
-          inProgress: 0, 
-          pending: 0, 
-          completionRate: 100,
-          total: 3
         }
       ];
     }
@@ -180,7 +148,6 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
 
   const getTrendsChartData = () => {
     if (!trends?.data) {
-      // API 데이터가 없으면 빈 배열 반환
       return [];
     }
 
@@ -189,54 +156,6 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
       completed: item.completed,
       total: item.total
     }));
-  };
-
-  const getProductivityData = () => {
-    if (!productivity?.weekdayStats) {
-      // Mock 데이터
-      return ['일', '월', '화', '수', '목', '금', '토'].map((day, index) => ({
-        dayName: day,
-        completedTodos: Math.floor(Math.random() * 15) + 3,
-        totalTodos: Math.floor(Math.random() * 20) + 5,
-        completionRate: Math.floor(Math.random() * 40) + 60
-      }));
-    }
-
-    return productivity.weekdayStats;
-  };
-
-  const getInsightsData = () => {
-    if (!insights || insights.length === 0) {
-      // Mock 데이터
-      return [
-        {
-          type: 'productivity',
-          level: 'positive',
-          title: '최고 생산성',
-          message: '화요일에 가장 많은 작업을 완료합니다. 완료율 85%',
-          icon: 'award',
-          suggestion: '화요일에 중요한 작업을 스케줄링하세요'
-        },
-        {
-          type: 'warning',
-          level: 'warning',
-          title: '주의 필요',
-          message: '업무 카테고리에서 5개의 지연된 작업이 있습니다',
-          icon: 'alert-triangle',
-          suggestion: '지연된 업무 작업의 우선순위를 재검토하세요'
-        },
-        {
-          type: 'recommendation',
-          level: 'positive',
-          title: '목표 달성 가능',
-          message: '긴급 작업 5개를 우선 처리하면 전체 완료율을 91%까지 올릴 수 있습니다',
-          icon: 'target',
-          suggestion: '오늘 긴급 작업부터 시작하세요'
-        }
-      ];
-    }
-
-    return insights;
   };
 
   // 로딩 상태
@@ -254,8 +173,6 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
   const priorityChartData = getPriorityChartData();
   const categoryChartData = getCategoryChartData();
   const trendsChartData = getTrendsChartData();
-  const productivityData = getProductivityData();
-  const insightsData = getInsightsData();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
@@ -327,35 +244,27 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
         {/* 헤더 */}
         <div className="mb-8">
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-3xl font-bold text-white mb-2 flex items-center">
                   <BarChart3 className="w-8 h-8 mr-3" />
-                  통계 분석
+                  주간 할 일 통계
                   {loading && (
                     <div className="ml-3 w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                   )}
                 </h2>
-                <p className="text-gray-300">생산성 패턴과 인사이트를 확인하세요</p>
-                {lastUpdated && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    마지막 업데이트: {lastUpdated.toLocaleTimeString('ko-KR')}
-                    {isStale && <span className="text-yellow-400 ml-1">(업데이트 필요)</span>}
-                  </p>
-                )}
+                <p className="text-gray-300">최근 7일간의 할 일 데이터를 분석합니다</p>
               </div>
               
-              <div className="flex items-center space-x-3">
-                {/* 새로고침 버튼 */}
-                <button
-                  onClick={handleRefresh}
-                  className="p-2 text-gray-400 hover:text-white transition-colors"
-                  title="새로고침"
-                  disabled={loading}
-                >
-                  <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
+              {/* 새로고침 버튼 */}
+              <button
+                onClick={handleRefresh}
+                className="p-3 bg-white/10 hover:bg-white/20 rounded-lg text-gray-400 hover:text-white transition-all"
+                title="새로고침"
+                disabled={loading}
+              >
+                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
             </div>
           </div>
         </div>
@@ -364,7 +273,7 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
         {error && summary && (
           <div className="mb-6 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
             <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-400" />
+              <BarChart3 className="w-5 h-5 text-yellow-400" />
               <p className="text-yellow-400 text-sm">
                 일부 데이터를 불러오지 못했습니다: {error}
               </p>
@@ -379,7 +288,7 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
         )}
 
         {/* 차트 그리드 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* 완료 추이 차트 */}
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
             <h3 className="text-lg font-semibold text-white mb-4">일별 완료 추이</h3>
@@ -428,7 +337,7 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
             )}
           </div>
 
-          {/* 우선순위별 분포 파이 차트 - API 연동 완료 */}
+          {/* 우선순위별 분포 파이 차트 */}
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
             <h3 className="text-lg font-semibold text-white mb-4">우선순위별 분포</h3>
             <ResponsiveContainer width="100%" height={250}>
@@ -461,99 +370,47 @@ const AnalyticsPage = ({ onPageChange, currentPage = 'analytics', onLogout }) =>
           </div>
         </div>
 
-        {/* 카테고리별 진행 상황과 AI 인사이트 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          {/* 카테고리별 진행 상황 - API 연동 완료 */}
-          <div className="lg:col-span-2 bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-            <h3 className="text-lg font-semibold text-white mb-4">카테고리별 진행 상황</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={categoryChartData} barSize={categoryChartData.length === 1 ? 250 : undefined}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="name" stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" domain={[0, 'auto']} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar dataKey="completed" stackId="a" fill="#8b5cf6" name="완료" />
-                <Bar dataKey="inProgress" stackId="a" fill="#06b6d4" name="진행중" />
-                <Bar dataKey="pending" stackId="a" fill="#ec4899" name="대기" />
-              </BarChart>
-            </ResponsiveContainer>
-            <div className={`grid gap-4 mt-4 ${
-              categoryChartData.length === 1 ? 'grid-cols-1 max-w-md mx-auto' :
-              categoryChartData.length === 2 ? 'grid-cols-2' :
-              'grid-cols-3'
-            }`}>
-              {categoryChartData.map((category) => (
-                <div key={category.name} className="text-center">
-                  <p className="text-gray-400 text-sm">{category.name}</p>
-                  <p className="text-2xl font-bold text-white">{category.completionRate}%</p>
-                  <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
-                    <div 
-                      className="bg-gradient-to-r from-green-500 to-green-400 h-2 rounded-full transition-all duration-500"
-                      style={{ width: `${category.completionRate}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    총 {category.total}개
-                  </p>
+        {/* 카테고리별 진행 상황 */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
+          <h3 className="text-lg font-semibold text-white mb-4">카테고리별 진행 상황</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={categoryChartData} barSize={categoryChartData.length === 1 ? 250 : undefined}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="name" stroke="#9ca3af" />
+              <YAxis stroke="#9ca3af" domain={[0, 'auto']} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Bar dataKey="completed" stackId="a" fill="#8b5cf6" name="완료" />
+              <Bar dataKey="inProgress" stackId="a" fill="#06b6d4" name="진행중" />
+              <Bar dataKey="pending" stackId="a" fill="#ec4899" name="대기" />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className={`grid gap-4 mt-4 ${
+            categoryChartData.length === 1 ? 'grid-cols-1 max-w-md mx-auto' :
+            categoryChartData.length === 2 ? 'grid-cols-2' :
+            'grid-cols-3'
+          }`}>
+            {categoryChartData.map((category) => (
+              <div key={category.name} className="text-center">
+                <p className="text-gray-400 text-sm">{category.name}</p>
+                <p className="text-2xl font-bold text-white">{category.completionRate}%</p>
+                <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
+                  <div 
+                    className="bg-gradient-to-r from-green-500 to-green-400 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${category.completionRate}%` }}
+                  ></div>
                 </div>
-              ))}
-            </div>
-            {!distribution?.categoryDistribution && (
-              <p className="text-xs text-gray-400 text-center mt-4">
-                로컬 데이터 사용 중 - API 연동 대기
-              </p>
-            )}
-          </div>
-
-          {/* AI 인사이트 카드 */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-            <h3 className="text-lg font-semibold text-white mb-4">AI 인사이트</h3>
-            <div className="space-y-4">
-              {insightsData.slice(0, 4).map((insight, index) => (
-                <div 
-                  key={index}
-                  className={`p-3 rounded-lg border ${
-                    insight.level === 'positive' ? 'bg-green-500/10 border-green-500/20' :
-                    insight.level === 'warning' ? 'bg-yellow-500/10 border-yellow-500/20' :
-                    'bg-red-500/10 border-red-500/20'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2 mb-1">
-                    {insight.icon === 'award' && <Award className="w-4 h-4 text-green-400" />}
-                    {insight.icon === 'alert-triangle' && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
-                    {insight.icon === 'target' && <Target className="w-4 h-4 text-purple-400" />}
-                    {insight.icon === 'trending-up' && <TrendingUp className="w-4 h-4 text-blue-400" />}
-                    <p className={`text-sm font-medium ${
-                      insight.level === 'positive' ? 'text-green-400' :
-                      insight.level === 'warning' ? 'text-yellow-400' :
-                      'text-red-400'
-                    }`}>
-                      {insight.title}
-                    </p>
-                  </div>
-                  <p className="text-white text-sm">{insight.message}</p>
-                  {insight.suggestion && (
-                    <p className="text-gray-400 text-xs mt-1">💡 {insight.suggestion}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-            
-            {/* API 상태 표시 */}
-            <div className="mt-4 pt-4 border-t border-white/10">
-              <div className="text-xs text-gray-400">
-                {summary ? (
-                  <span className="text-green-400">서버 데이터 연동됨</span>
-                ) : (
-                  <span className="text-blue-400">로컬 데이터 사용 중</span>
-                )}
-                {distribution?.priorityDistribution && distribution?.categoryDistribution && (
-                  <span className="text-green-400 ml-2">• 분포 API 연동됨</span>
-                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  총 {category.total}개
+                </p>
               </div>
-            </div>
+            ))}
           </div>
+          {!distribution?.categoryDistribution && (
+            <p className="text-xs text-gray-400 text-center mt-4">
+              로컬 데이터 사용 중 - API 연동 대기
+            </p>
+          )}
         </div>
       </div>
     </div>
