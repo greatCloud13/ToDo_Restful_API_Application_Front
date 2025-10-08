@@ -12,8 +12,6 @@ export const useAnalytics = (period = 'week') => {
     summary: null,
     trends: null,
     distribution: null,
-    productivity: null,
-    insights: null,
     loading: true,
     error: null,
     lastUpdated: null
@@ -44,56 +42,25 @@ export const useAnalytics = (period = 'week') => {
     };
   };
 
-  // Mock 데이터 생성 (trends 랜덤 생성 제거)
+  // Mock 데이터 생성
   const generateMockData = () => {
     return {
-      // 우선순위별 분포 Mock 데이터 (API 연동 완료로 제거 가능)
       distribution: {
         priorityDistribution: [
           { priority: 'VERY_HIGH', count: 5 },
           { priority: 'HIGH', count: 8 },
-          { priority: 'MIDDLE', count: 10 }, // MEDIUM -> MIDDLE로 수정
+          { priority: 'MIDDLE', count: 10 },
           { priority: 'LOW', count: 3 },
           { priority: 'VERY_LOW', count: 2 }
         ],
         categoryDistribution: [
-          { categoryName: '업무', completed: 10, inProgress: 3, pending: 2, completionRate: 67 },
-          { categoryName: '개발', completed: 8, inProgress: 1, pending: 1, completionRate: 80 },
-          { categoryName: '개인', completed: 3, inProgress: 0, pending: 0, completionRate: 100 }
+          { categoryName: '업무', completed: 10, inProgress: 3, pending: 2, completionRate: 67 }
         ]
-      },
-      // trends 랜덤 생성 제거 - API에서만 데이터 가져오기
-      productivity: {
-        weekdayStats: ['일', '월', '화', '수', '목', '금', '토'].map((day, index) => ({
-          dayOfWeek: index,
-          dayName: day,
-          totalTodos: Math.floor(Math.random() * 20) + 5,
-          completedTodos: Math.floor(Math.random() * 15) + 3,
-          completionRate: Math.floor(Math.random() * 40) + 60
-        }))
-      },
-      insights: [
-        {
-          type: 'productivity',
-          level: 'positive',
-          title: '최고 생산성',
-          message: '화요일에 가장 많은 작업을 완료합니다. 완료율 85%',
-          icon: 'award',
-          suggestion: '화요일에 중요한 작업을 스케줄링하세요'
-        },
-        {
-          type: 'warning',
-          level: 'warning',
-          title: '주의 필요',
-          message: '업무 카테고리에서 5개의 지연된 작업이 있습니다',
-          icon: 'alert-triangle',
-          suggestion: '지연된 업무 작업의 우선순위를 재검토하세요'
-        }
-      ]
+      }
     };
   };
 
-  // 데이터 로드 함수 (분포 API 연동)
+  // 데이터 로드 함수
   const loadData = async () => {
     if (loadingRef.current) {
       console.log('이미 로딩 중이므로 중복 호출 방지');
@@ -127,25 +94,11 @@ export const useAnalytics = (period = 'week') => {
           .catch(error => ({ type: 'trends', error: error.message }))
       );
 
-      // Distribution API - 새로 추가된 API
+      // Distribution API
       apiCalls.push(
         analyticsService.getDistribution('all', period)
           .then(data => ({ type: 'distribution', data }))
           .catch(error => ({ type: 'distribution', error: error.message }))
-      );
-
-      // Productivity API
-      apiCalls.push(
-        analyticsService.getProductivityPatterns(period)
-          .then(data => ({ type: 'productivity', data }))
-          .catch(error => ({ type: 'productivity', error: error.message }))
-      );
-
-      // Insights API
-      apiCalls.push(
-        analyticsService.getInsights(period)
-          .then(data => ({ type: 'insights', data }))
-          .catch(error => ({ type: 'insights', error: error.message }))
       );
 
       console.log('📡 모든 Analytics API 병렬 호출 시작...');
@@ -170,8 +123,8 @@ export const useAnalytics = (period = 'week') => {
             // Trends 데이터 변환
             const chartData = result.data.map(item => ({
               date: item.date.substring(5).replace('-', '/'),
-              completed: item.completed,
-              total: item.total
+              completed: parseInt(item.completed) || 0,
+              total: parseInt(item.total) || 0
             }));
             updates.trends = { data: chartData };
             
@@ -226,7 +179,7 @@ export const useAnalytics = (period = 'week') => {
     return () => {
       mountedRef.current = false;
     };
-  }, [period]); // 단순한 의존성
+  }, [period]);
 
   // 수동 새로고침
   const refresh = () => {
