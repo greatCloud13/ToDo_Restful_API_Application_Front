@@ -69,7 +69,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     { id: 'todos', name: '할 일 관리', icon: CheckCircle },
     { id: 'calendar', name: '캘린더', icon: Calendar },
     { id: 'analytics', name: '통계', icon: TrendingUp },
-    { id: 'settings', name: '설정', icon: Settings }
+    { id: 'qna', name: '고객지원', icon: Settings }
   ];
 
   // 우선순위별 색상

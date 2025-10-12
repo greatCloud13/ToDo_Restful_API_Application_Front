@@ -7,7 +7,7 @@ import Dashboard from './components/dashboard/Dashboard';
 import CalendarPage from './components/calendar/CalendarPage';
 import TodoManagementPage from './components/todo/TodoManagementPage';
 import AnalyticsPage from './components/pages/AnalyticsPage';
-import SettingsPage from './components/pages/SettingsPage';
+import QnaPage from './components/pages/QnaPage';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import './App.css';
 
@@ -52,8 +52,8 @@ function App() {
         return <TodoManagementPage {...commonProps} />;
       case 'analytics':
         return <AnalyticsPage {...commonProps} />;
-      case 'settings':
-        return <SettingsPage {...commonProps} />;
+      case 'qna':
+        return <QnaPage {...commonProps} />;
       default:
         return <Dashboard {...commonProps} />;
     }
