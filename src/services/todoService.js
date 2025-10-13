@@ -204,27 +204,23 @@ class TodoService {
 
   // 할일 상태 토글 (pending <-> completed)
   async toggleTodoStatus(id) {
-    try {
-      // 먼저 현재 할일 정보를 가져옴
-      const todo = await this.getTodoById(id);
-      
-      // 상태 토글 로직
-      let newStatus;
-      if (todo.status === 'completed') {
-        newStatus = 'pending';
-      } else if (todo.status === 'pending' || todo.status === 'in-progress') {
-        newStatus = 'completed';
-      } else {
-        newStatus = 'completed';
-      }
+  try {
+    // ✅ Dashboard와 동일하게 단순화
+    const response = await fetch(`${this.baseURL}/status/${id}?status=COMPLETE`, {
+      method: 'POST',
+      headers: this.getAuthHeaders()
+    });
 
-      // 상태 업데이트
-      return await this.updateTodoStatus(id, newStatus);
-    } catch (error) {
-      console.error('상태 토글 중 오류:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error(`상태 변경 실패: ${response.status}`);
     }
+    
+    return response.json();
+  } catch (error) {
+    console.error('상태 토글 중 오류:', error);
+    throw error;
   }
+}
 
   // 할일 상태 변경 (별도 API 엔드포인트 사용)
   async updateTodoStatus(id, status) {
@@ -374,7 +370,75 @@ class TodoService {
       throw error;
     }
   }
+
+  // 대량 상태 변경
+  async bulkUpdateStatus(ids, status) {
+    try {
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new Error('변경할 할일을 선택해주세요.');
+      }
+
+      const validStatuses = ['pending', 'in-progress', 'completed'];
+      if (!validStatuses.includes(status)) {
+        throw new Error(`유효하지 않은 상태입니다: ${status}`);
+      }
+
+      // 상태 매핑
+      const statusMap = {
+        'in-progress': 'IN_PROGRESS',
+        'completed': 'COMPLETE',
+        'pending': 'ON_HOLD'
+      };
+
+      const backendStatus = statusMap[status];
+
+      const response = await fetch(`${this.baseURL}/bulkUpdate`, {
+        method: 'PATCH',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          id: ids,
+          status: backendStatus
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`대량 상태 변경 실패: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.map(todo => this.mapBackendToFrontend(todo));
+    } catch (error) {
+      console.error('대량 상태 변경 중 오류:', error);
+      throw error;
+    }
+  }
+
+  // 대량 삭제
+  async bulkDeleteTodos(ids) {
+    try {
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new Error('삭제할 할일을 선택해주세요.');
+      }
+
+      const response = await fetch(`${this.baseURL}/bulkDelete`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(ids)
+      });
+
+      if (!response.ok) {
+        throw new Error(`대량 삭제 실패: ${response.status}`);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('대량 삭제 중 오류:', error);
+      throw error;
+    }
+  }
+
 }
+
 
 // 싱글톤 인스턴스 생성
 export const todoService = new TodoService();
