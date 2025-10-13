@@ -63,6 +63,12 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
     content: ''
   });
 
+    // 답변 작성 상태 추가
+  const [answerForm, setAnswerForm] = useState({
+    qnaId: null,
+    answer: ''
+  });
+
   // 버그 제보 상태
   const [bugReports, setBugReports] = useState([
     {
@@ -90,6 +96,13 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
     title: '',
     content: ''
   });
+
+  // 관리자 여부 확인
+  const isAdmin = user.authorities.includes('ROLE_ADMIN');
+
+  // 답변 대기 카운트
+  const pendingQnaCount = qnaList.filter(q => q.status === 'pending').length;
+  const pendingBugCount = bugReports.filter(b => b.status === 'reported').length;
 
   const menuItems = [
     { id: 'dashboard', name: '대시보드', icon: Activity },
@@ -149,6 +162,31 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
     alert('문의가 등록되었습니다.');
   };
 
+  // 답변 작성 핸들러 추가
+  const handleAnswerSubmit = (qnaId) => {
+    if (!answerForm.answer.trim()) {
+      alert('답변 내용을 입력해주세요.');
+      return;
+    }
+
+    setQnaList(prevList => 
+      prevList.map(qna => 
+        qna.id === qnaId 
+          ? {
+              ...qna,
+              status: 'answered',
+              answer: answerForm.answer,
+              answeredAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+              answeredBy: user.username
+            }
+          : qna
+      )
+    );
+
+    setAnswerForm({ qnaId: null, answer: '' });
+    alert('답변이 등록되었습니다.');
+  };
+
   const handleSubmitBug = (e) => {
     e.preventDefault();
     if (!newBug.title.trim() || !newBug.content.trim()) {
@@ -173,6 +211,29 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
     alert('버그가 제보되었습니다.');
   };
 
+  // 버그 응답 작성 핸들러 추가
+  const handleBugResponseSubmit = (bugId, newStatus) => {
+    if (!answerForm.answer.trim()) {
+      alert('응답 내용을 입력해주세요.');
+      return;
+    }
+
+    setBugReports(prevList => 
+      prevList.map(bug => 
+        bug.id === bugId 
+          ? {
+              ...bug,
+              status: newStatus,
+              response: answerForm.answer
+            }
+          : bug
+      )
+    );
+
+    setAnswerForm({ qnaId: null, answer: '' });
+    alert('응답이 등록되었습니다.');
+  };
+
   const getStatusBadge = (status) => {
     const badges = {
       pending: { text: '답변대기', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
@@ -187,42 +248,56 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
   const renderQnaTab = () => {
     return (
       <div className="space-y-6">
-        {/* 새 문의 작성 */}
-        <div className="bg-white/5 rounded-lg p-6 border border-white/10">
-          <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
-            <MessageSquare className="w-5 h-5 mr-2" />
-            새 문의 작성
-          </h3>
-          <form onSubmit={handleSubmitQna} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">제목</label>
-              <input
-                type="text"
-                value={newQna.title}
-                onChange={(e) => setNewQna({...newQna, title: e.target.value})}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="문의 제목을 입력하세요"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">내용</label>
-              <textarea
-                value={newQna.content}
-                onChange={(e) => setNewQna({...newQna, content: e.target.value})}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
-                rows="5"
-                placeholder="문의 내용을 상세히 작성해주세요"
-              />
-            </div>
-            <button
-              type="submit"
-              className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all flex items-center justify-center font-medium"
-            >
-              <Send className="w-5 h-5 mr-2" />
-              문의하기
-            </button>
-          </form>
+        {/* 관리자 알림 추가 */}
+        {isAdmin && pendingQnaCount > 0 && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+          <div className="flex items-center">
+            <Bell className="w-5 h-5 text-yellow-400 mr-2" />
+            <span className="text-yellow-400 font-medium">
+              답변 대기중인 문의가 {pendingQnaCount}건 있습니다.
+            </span>
+          </div>
         </div>
+        )}
+
+        {/* 새 문의 작성 - 관리자가 아닐 때만 표시 */}
+        {!isAdmin && (
+          <div className="bg-white/5 rounded-lg p-6 border border-white/10">
+            <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
+              <MessageSquare className="w-5 h-5 mr-2" />
+              새 문의 작성
+            </h3>
+            <form onSubmit={handleSubmitQna} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">제목</label>
+                <input
+                  type="text"
+                  value={newQna.title}
+                  onChange={(e) => setNewQna({...newQna, title: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="문의 제목을 입력하세요"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">내용</label>
+                <textarea
+                  value={newQna.content}
+                  onChange={(e) => setNewQna({...newQna, content: e.target.value})}
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  rows="5"
+                  placeholder="문의 내용을 상세히 작성해주세요"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all flex items-center justify-center font-medium"
+              >
+                <Send className="w-5 h-5 mr-2" />
+                문의하기
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* 문의 목록 */}
         <div className="space-y-3">
@@ -293,12 +368,36 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
                       <span className="text-green-400 font-medium">답변</span>
                     </div>
                     <p className="text-white mb-2">{selectedQna.answer}</p>
-                    <span className="text-xs text-gray-400">{selectedQna.answeredAt}</span>
+                    <div className="flex items-center justify-between text-xs text-gray-400">
+                      <span>{selectedQna.answeredBy}</span>
+                      <span>{selectedQna.answeredAt}</span>
+                    </div>
                   </div>
                 ) : (
-                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
-                    <p className="text-yellow-400">답변 대기 중입니다</p>
-                  </div>
+                  <>
+                    {isAdmin ? (
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                        <p className="text-yellow-400 mb-3 font-medium">관리자 답변 작성</p>
+                        <textarea
+                          value={answerForm.qnaId === selectedQna.id ? answerForm.answer : ''}
+                          onChange={(e) => setAnswerForm({ qnaId: selectedQna.id, answer: e.target.value })}
+                          className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
+                          rows="4"
+                          placeholder="답변 내용을 입력하세요..."
+                        />
+                        <button
+                          onClick={() => handleAnswerSubmit(selectedQna.id)}
+                          className="mt-3 w-full py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
+                        >
+                          답변 등록
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 text-center">
+                        <p className="text-yellow-400">답변 대기 중입니다</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -311,7 +410,20 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
   const renderBugTab = () => {
     return (
       <div className="space-y-6">
-        {/* 새 버그 제보 */}
+        {/* 관리자 알림 추가 */}
+        {isAdmin && pendingBugCount > 0 && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+          <div className="flex items-center">
+            <Bell className="w-5 h-5 text-red-400 mr-2" />
+            <span className="text-red-400 font-medium">
+              확인이 필요한 버그가 {pendingBugCount}건 있습니다.
+            </span>
+          </div>
+        </div>
+        )}
+
+        {/* 새 버그 제보 - !isAdmin 조건 추가 */}
+        {!isAdmin && (
         <div className="bg-white/5 rounded-lg p-6 border border-white/10">
           <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
             <Bug className="w-5 h-5 mr-2" />
@@ -347,6 +459,7 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
             </button>
           </form>
         </div>
+        )}
 
         {/* 버그 목록 */}
         <div className="space-y-3">
@@ -421,9 +534,38 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
                     <p className="text-white">{selectedBug.response}</p>
                   </div>
                 ) : (
-                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-center">
-                    <p className="text-blue-400">확인 중입니다</p>
-                  </div>
+                  <>
+                    {isAdmin ? (
+                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                        <p className="text-blue-400 mb-3 font-medium">관리자 응답 작성</p>
+                        <textarea
+                          value={answerForm.qnaId === selectedBug.id ? answerForm.answer : ''}
+                          onChange={(e) => setAnswerForm({ qnaId: selectedBug.id, answer: e.target.value })}
+                          className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          rows="4"
+                          placeholder="진행 상황이나 응답을 입력하세요..."
+                        />
+                        <div className="flex space-x-2 mt-3">
+                          <button
+                            onClick={() => handleBugResponseSubmit(selectedBug.id, 'in-progress')}
+                            className="flex-1 py-2 bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors"
+                          >
+                            수정중으로 표시
+                          </button>
+                          <button
+                            onClick={() => handleBugResponseSubmit(selectedBug.id, 'fixed')}
+                            className="flex-1 py-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors"
+                          >
+                            수정완료로 표시
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 text-center">
+                        <p className="text-blue-400">확인 중입니다</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -540,6 +682,9 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
               <div className="space-y-1">
                 {settingsTabs.map(tab => {
                   const Icon = tab.icon;
+                  const count = tab.id === 'qna' ? pendingQnaCount : pendingBugCount;
+                  const showBadge = isAdmin && count > 0;
+                  
                   return (
                     <button
                       key={tab.id}
@@ -552,7 +697,12 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
                     >
                       <Icon className="w-5 h-5" />
                       <span className="font-medium">{tab.name}</span>
-                      {activeTab === tab.id && (
+                      {showBadge && (
+                        <span className="ml-auto w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
+                          {count}
+                        </span>
+                      )}
+                      {activeTab === tab.id && !showBadge && (
                         <ChevronRight className="w-4 h-4 ml-auto" />
                       )}
                     </button>
