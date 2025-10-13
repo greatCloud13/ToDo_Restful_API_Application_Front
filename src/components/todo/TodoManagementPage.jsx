@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { useAppContext } from '../../contexts/AppContext';
 import { authService } from '../../services/authService';
+import { todoService } from '../../services/todoService';
 
 const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) => {
   const {
@@ -42,7 +43,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     addTodo,
     updateTodo,
     deleteTodo,
-    toggleTodoStatus,
+    loadTodos,
     clearError,
     // 유틸리티 함수들
     getUrgentTodos
@@ -309,26 +310,44 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
   };
 
   const handleBulkDelete = async () => {
-    if (window.confirm(`선택된 ${selectedTodos.size}개의 할일을 삭제하시겠습니까?`)) {
-      try {
-        for (const id of selectedTodos) {
-          await deleteTodo(id);
-        }
-        setSelectedTodos(new Set());
-      } catch (error) {
-        console.error('대량 삭제 실패:', error);
-      }
+    const count = selectedTodos.size;
+    
+    if (!window.confirm(`선택된 ${count}개의 할일을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const ids = Array.from(selectedTodos);
+      await todoService.bulkDeleteTodos(ids);  // ✅ 백엔드 대량 API 사용
+      await loadTodos();  // ✅ Context의 loadTodos로 새로고침
+      
+      setSelectedTodos(new Set());
+      alert(`${count}개의 할일이 삭제되었습니다.`);
+    } catch (error) {
+      console.error('대량 삭제 실패:', error);
+      alert('일부 할일의 삭제에 실패했습니다.');
     }
   };
 
   const handleBulkStatusChange = async (status) => {
+    const count = selectedTodos.size;
+    const statusText = status === 'completed' ? '완료' : 
+                      status === 'in-progress' ? '진행중' : '대기';
+    
+    if (!window.confirm(`선택된 ${count}개의 할일을 ${statusText}로 변경하시겠습니까?`)) {
+      return;
+    }
+
     try {
-      for (const id of selectedTodos) {
-        await updateTodo(id, { status });
-      }
+      const ids = Array.from(selectedTodos);
+      await todoService.bulkUpdateStatus(ids, status);  // ✅ 백엔드 대량 API 사용
+      await loadTodos();  // ✅ Context의 loadTodos로 새로고침
+      
       setSelectedTodos(new Set());
+      alert(`${count}개의 할일이 ${statusText}로 변경되었습니다.`);
     } catch (error) {
       console.error('대량 상태 변경 실패:', error);
+      alert('일부 할일의 상태 변경에 실패했습니다.');
     }
   };
 
@@ -362,11 +381,16 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
 
   const handleToggleStatus = async (id) => {
     try {
-      await toggleTodoStatus(id);
-    } catch (error) {
-      console.error('상태 변경 실패:', error);
-    }
-  };
+    // ✅ Dashboard 방식: 직접 todoService 호출
+    await todoService.toggleTodoStatus(id);
+    
+    // ✅ Context의 todos 다시 로드
+    await loadTodos();  // Context의 loadTodos 함수 호출
+  } catch (error) {
+    console.error('상태 변경 실패:', error);
+    alert('상태 변경에 실패했습니다.');  // ✅ 사용자 알림 추가
+  }
+};
 
   const handleAddTodo = () => {
     setFormData({
