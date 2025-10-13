@@ -49,12 +49,12 @@ export const useCalendar = (selectedDate, currentDate) => {
 
   // 선택된 날짜 할일 필터링
   useEffect(() => {
-    if (monthTodos.length > 0 && selectedDate) {
-      const dateString = selectedDate.toISOString().split('T')[0];
-      const filtered = calendarService.filterTodosByDate(monthTodos, dateString);
-      setSelectedDateTodos(filtered);
-    }
-  }, [selectedDate, monthTodos]);
+  if (monthTodos.length > 0 && selectedDate) {
+    const dateString = calendarService.formatLocalDate(selectedDate);
+    const filtered = calendarService.filterTodosByDate(monthTodos, dateString);
+    setSelectedDateTodos(filtered);
+  }
+}, [selectedDate, monthTodos]);
 
   // 월 변경 시 데이터 재로드
   useEffect(() => {
