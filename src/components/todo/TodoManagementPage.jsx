@@ -909,11 +909,11 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
 
       {/* 할일 상세보기 모달 */}
       {isDetailModalOpen && selectedTodo && (
-  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 modal-backdrop-enter">
-    <div 
-      className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-2xl modal-enter"
-      onClick={(e) => e.stopPropagation()}
-    >
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 modal-backdrop-enter">
+        <div 
+          className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-2xl modal-enter"
+          onClick={(e) => e.stopPropagation()}
+        >
       <div className="p-8">
         {/* 헤더 */}
         <div className="flex justify-between items-start mb-6">
