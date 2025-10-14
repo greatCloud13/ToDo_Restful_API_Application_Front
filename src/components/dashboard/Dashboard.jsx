@@ -138,7 +138,7 @@ class DashboardService {
 
 class TodoService {
   constructor() {
-    this.baseURL = API_ENDPOINTS.DASHBOARD;
+    this.baseURL = API_ENDPOINTS.TODOS;
   }
 
   getAuthHeaders() {
