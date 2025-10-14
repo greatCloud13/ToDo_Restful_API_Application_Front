@@ -13,6 +13,12 @@ import './App.css';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [selectedTodoFromNotification, setSelectedTodoFromNotification] = useState(null);
+  const [pendingTodoSelection, setPendingTodoSelection] = useState(null);
+  
+  // ✅ 추가: 페이지 전환 애니메이션 상태
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [nextPage, setNextPage] = useState(null);
   
   const { 
     isLoggedIn, 
@@ -28,35 +34,102 @@ function App() {
     window.scrollTo(0, 0);
   }, [currentPage]);
 
+  // ✅ 수정: 페이지 전환 완료 후 할일 선택 처리
+  useEffect(() => {
+    if (currentPage === 'todos' && pendingTodoSelection && !isTransitioning) {
+      console.log('📱 페이지 전환 완료, 할일 상세보기 준비:', pendingTodoSelection);
+      
+      // 페이지 애니메이션 완료 대기 (300ms)
+      const timer = setTimeout(() => {
+        setSelectedTodoFromNotification(pendingTodoSelection);
+        setPendingTodoSelection(null);
+      }, 320); // 페이지 애니메이션(300ms) + 여유(20ms)
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentPage, pendingTodoSelection, isTransitioning]);
+
+  // ✅ 수정: 애니메이션과 함께 페이지 전환
   const handlePageChange = (page) => {
-    setCurrentPage(page);
+    if (page === currentPage) return;
+    
+    setIsTransitioning(true);
+    
+    // 짧은 블러 효과 후 페이지 변경
+    setTimeout(() => {
+      setCurrentPage(page);
+      setIsTransitioning(false);
+    }, 200);
   };
 
   const handleLoginSuccess = () => {
     setCurrentPage('dashboard');
   };
 
+  // ✅ 수정: 알림에서 할일 클릭 시 처리
+  const handleTodoClickFromNotification = (todo) => {
+    console.log('📱 알림 클릭:', todo);
+    console.log('📱 현재 페이지:', currentPage);
+    
+    if (currentPage === 'todos') {
+      // 이미 할일 페이지에 있으면 바로 선택
+      console.log('📱 이미 할일 페이지, 바로 선택');
+      setSelectedTodoFromNotification(todo);
+    } else {
+      // 다른 페이지에 있으면 페이지 전환 후 선택
+      console.log('📱 페이지 전환 후 선택 예약');
+      setPendingTodoSelection(todo);
+      handlePageChange('todos'); // ✅ 애니메이션과 함께 전환
+    }
+  };
+
   const renderCurrentPage = () => {
     const commonProps = {
       onPageChange: handlePageChange,
       currentPage: currentPage,
-      onLogout: logout
+      onLogout: logout,
+      onTodoClick: handleTodoClickFromNotification
     };
+
+    let PageComponent;
+    let pageProps = { ...commonProps };
 
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard {...commonProps} />;
+        PageComponent = Dashboard;
+        break;
       case 'calendar':
-        return <CalendarPage {...commonProps} />;
+        PageComponent = CalendarPage;
+        break;
       case 'todos':
-        return <TodoManagementPage {...commonProps} />;
+        PageComponent = TodoManagementPage;
+        pageProps = {
+          ...commonProps,
+          selectedTodoFromNotification,
+          onClearSelectedTodo: () => {
+            setSelectedTodoFromNotification(null);
+            setPendingTodoSelection(null);
+          }
+        };
+        break;
       case 'analytics':
-        return <AnalyticsPage {...commonProps} />;
+        PageComponent = AnalyticsPage;
+        break;
       case 'qna':
-        return <QnaPage {...commonProps} />;
+        PageComponent = QnaPage;
+        break;
       default:
-        return <Dashboard {...commonProps} />;
+        PageComponent = Dashboard;
     }
+
+    return (
+      <div 
+        key={currentPage}
+        className={isTransitioning ? 'page-exit' : 'page-enter'}
+      >
+        <PageComponent {...pageProps} />
+      </div>
+    );
   };
 
   if (isLoading) {
