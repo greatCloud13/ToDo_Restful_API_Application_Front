@@ -506,14 +506,6 @@ const LoginPage = ({ onLoginSuccess, onLogin }) => {
                   비밀번호 찾기
                 </button>
               </div>
-
-              {/* 테스트용 계정 정보 */}
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                <p className="text-blue-300 text-sm font-medium mb-1">🧪 테스트 계정</p>
-                <p className="text-blue-200 text-xs">
-                  아이디: <span className="font-mono">admin</span> / 비밀번호: <span className="font-mono">admin123</span>
-                </p>
-              </div>
             </form>
           ) : (
             /* 회원가입 폼 */
