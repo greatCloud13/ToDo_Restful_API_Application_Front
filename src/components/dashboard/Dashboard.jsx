@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Navigation from '../../components/common/Navigation';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS } from '../../config/api';
 import confetti from 'canvas-confetti';
 import { 
   CheckCircle, 
