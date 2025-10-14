@@ -600,26 +600,26 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout, onTodoCl
                   </div>
                 </div>
                 
-                {/* 오른쪽: 시간/날짜 - 개선된 배치 */}
-                <div className="flex items-stretch bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-xl">
+                {/* 시간/날짜 박스*/}
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-0 bg-slate-900/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/10 overflow-hidden shadow-xl">
                   {/* 시간 박스 */}
-                  <div className="px-10 py-6 flex flex-col justify-between border-r border-white/10">
-                    <div className="flex items-center space-x-2 mb-3">
+                  <div className="px-6 sm:px-8 lg:px-10 py-4 sm:py-5 lg:py-6 flex flex-col justify-between sm:border-r border-white/10 sm:border-b-0 border-b">
+                    <div className="flex items-center space-x-2 mb-2 sm:mb-3">
                       <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50"></div>
-                      <span className="text-[10px] text-purple-400 font-bold uppercase tracking-[0.2em]">
+                      <span className="text-[9px] sm:text-[10px] text-purple-400 font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em]">
                         Live Time
                       </span>
                     </div>
                     <div className="font-mono tabular-nums">
-                      <div className="flex items-baseline space-x-1.5">
-                        <span className="text-[3.5rem] font-bold text-white leading-none tracking-tight">
+                      <div className="flex items-baseline space-x-1 sm:space-x-1.5">
+                        <span className="text-4xl sm:text-5xl lg:text-6xl xl:text-[3.5rem] font-bold text-white leading-none tracking-tight">
                           {currentTime.getHours().toString().padStart(2, '0')}
                         </span>
-                        <span className="text-[3.5rem] font-bold text-purple-400 leading-none">:</span>
-                        <span className="text-[3.5rem] font-bold text-white leading-none tracking-tight">
+                        <span className="text-4xl sm:text-5xl lg:text-6xl xl:text-[3.5rem] font-bold text-purple-400 leading-none">:</span>
+                        <span className="text-4xl sm:text-5xl lg:text-6xl xl:text-[3.5rem] font-bold text-white leading-none tracking-tight">
                           {currentTime.getMinutes().toString().padStart(2, '0')}
                         </span>
-                        <span className="text-xl text-gray-500 ml-1 leading-none self-end mb-2">
+                        <span className="text-base sm:text-lg lg:text-xl text-gray-500 ml-1 leading-none self-end mb-1 sm:mb-2">
                           {currentTime.getSeconds().toString().padStart(2, '0')}
                         </span>
                       </div>
@@ -627,25 +627,23 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout, onTodoCl
                   </div>
                   
                   {/* 날짜 박스 */}
-                  <div className="px-10 py-6 flex flex-col justify-between">
-                    <div className="flex items-center space-x-2 mb-3">
+                  <div className="px-6 sm:px-8 lg:px-10 py-4 sm:py-5 lg:py-6 flex flex-col justify-between">
+                    <div className="flex items-center space-x-2 mb-2 sm:mb-3">
                       <Calendar className="w-3 h-3 text-blue-400" />
-                      <span className="text-[10px] text-blue-400 font-bold uppercase tracking-[0.2em]">
+                      <span className="text-[9px] sm:text-[10px] text-blue-400 font-bold uppercase tracking-[0.15em] sm:tracking-[0.2em]">
                         Today
                       </span>
                     </div>
-                    <div className="flex items-end space-x-3">
-                      {/* 월/요일/년도를 먼저 배치 */}
+                    <div className="flex items-end space-x-2 sm:space-x-3">
                       <div className="flex flex-col justify-end space-y-0.5">
-                        <span className="text-xl font-bold text-blue-400 leading-none">
+                        <span className="text-lg sm:text-xl font-bold text-blue-400 leading-none">
                           {currentTime.toLocaleDateString('ko-KR', { month: 'short' }).replace('.', '')}
                         </span>
-                        <span className="text-xs text-gray-500 font-medium leading-none">
+                        <span className="text-[10px] sm:text-xs text-gray-500 font-medium leading-none">
                           {currentTime.toLocaleDateString('ko-KR', { weekday: 'short' })} · {currentTime.getFullYear()}
                         </span>
                       </div>
-                      {/* 일(날짜)을 뒤에 배치 */}
-                      <span className="text-[3.5rem] font-bold text-white leading-none">
+                      <span className="text-4xl sm:text-5xl lg:text-6xl xl:text-[3.5rem] font-bold text-white leading-none">
                         {currentTime.getDate()}
                       </span>
                     </div>

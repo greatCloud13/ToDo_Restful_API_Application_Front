@@ -10,7 +10,8 @@ import {
   X,
   Clock,
   AlertCircle,
-  ChevronRight
+  ChevronRight,
+  Menu
 } from 'lucide-react';
 import { useAppContext } from '../../contexts/AppContext';
 
@@ -21,7 +22,9 @@ const Navigation = ({
   onTodoClick
 }) => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notificationRef = useRef(null);
+  const mobileMenuRef = useRef(null);
 
   // AppContext에서 데이터 가져오기
   const { todos, user } = useAppContext();
@@ -69,6 +72,7 @@ const Navigation = ({
   const totalNotifications = todayTodos.length + overdueTodos.length + urgentTodos.length;
 
   const handleMenuClick = (menuId) => {
+    setIsMobileMenuOpen(false);
     if (onPageChange) {
       onPageChange(menuId);
     }
@@ -86,32 +90,35 @@ const Navigation = ({
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
         setIsNotificationOpen(false);
       }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
+        setIsMobileMenuOpen(false);
+      }
     };
 
-    if (isNotificationOpen) {
+    if (isNotificationOpen || isMobileMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isNotificationOpen]);
+  }, [isNotificationOpen, isMobileMenuOpen]);
 
   return (
-    <nav className="bg-black/20 backdrop-blur-xl border-b border-white/10 relative z-50">
+    <nav className="bg-black/20 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* 로고 & 메뉴 */}
-          <div className="flex items-center space-x-8">
+          {/* 로고 & 데스크톱 메뉴 */}
+          <div className="flex items-center space-x-4 lg:space-x-8">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
                 <CheckCircle className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-xl font-bold text-white">ToDo App</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-white">ToDo App</h1>
             </div>
 
-            {/* 대메뉴 */}
-            <div className="hidden md:flex space-x-1">
+            {/* 데스크톱 메뉴 */}
+            <div className="hidden lg:flex space-x-1">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPage === item.id;
@@ -119,14 +126,14 @@ const Navigation = ({
                   <button
                     key={item.id}
                     onClick={() => handleMenuClick(item.id)}
-                    className={`flex items-center px-4 py-2 rounded-lg transition-all duration-200 ${
+                    className={`flex items-center px-3 xl:px-4 py-2 rounded-lg transition-all duration-200 text-sm ${
                       isActive 
                         ? 'bg-white/20 text-white shadow-lg' 
                         : 'text-gray-400 hover:text-white hover:bg-white/10'
                     }`}
                   >
                     <Icon className="w-4 h-4 mr-2" />
-                    {item.name}
+                    <span className="hidden xl:inline">{item.name}</span>
                   </button>
                 );
               })}
@@ -134,9 +141,9 @@ const Navigation = ({
           </div>
 
           {/* 우측 메뉴 */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             {/* 알림 버튼 */}
-            <div className="relative z-[10000]" ref={notificationRef}>
+            <div className="relative" ref={notificationRef}>
               <button 
                 onClick={() => setIsNotificationOpen(!isNotificationOpen)}
                 className="relative p-2 text-gray-400 hover:text-white transition-colors"
@@ -152,11 +159,10 @@ const Navigation = ({
               {/* 알림 드롭다운 */}
               {isNotificationOpen && (
                 <div 
-                  className="fixed top-16 right-4 w-80 bg-gradient-to-b from-slate-900/95 to-purple-900/95 backdrop-blur-2xl border border-white/30 rounded-2xl shadow-[0_20px_80px_rgba(0,0,0,0.5)] z-[9999]"
-                  style={{ maxHeight: 'calc(100vh - 5rem)' }}
+                  className="absolute right-0 mt-2 w-80 sm:w-96 bg-gradient-to-b from-slate-900/95 to-purple-900/95 backdrop-blur-2xl border border-white/30 rounded-2xl shadow-[0_20px_80px_rgba(0,0,0,0.5)] z-[9999] max-h-[85vh] flex flex-col"
                 >
                   {/* 헤더 */}
-                  <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/5">
+                  <div className="flex items-center justify-between p-4 border-b border-white/20 bg-white/5 flex-shrink-0">
                     <div className="flex items-center space-x-2">
                       <Bell className="w-5 h-5 text-purple-400" />
                       <h3 className="text-white font-bold">알림</h3>
@@ -174,8 +180,8 @@ const Navigation = ({
                     </button>
                   </div>
 
-                  {/* 알림 내용 */}
-                  <div className="max-h-[500px] overflow-y-auto">
+                  {/* 알림 내용 - 스크롤 가능 */}
+                  <div className="overflow-y-auto flex-1">
                     {totalNotifications === 0 ? (
                       <div className="p-8 text-center">
                         <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl flex items-center justify-center">
@@ -328,8 +334,8 @@ const Navigation = ({
               )}
             </div>
             
-            {/* 사용자 정보 & 로그아웃 */}
-            <div className="flex items-center space-x-3">
+            {/* 사용자 정보 - 태블릿 이상에서만 표시 */}
+            <div className="hidden sm:flex items-center space-x-3">
               <div className="text-right">
                 <p className="text-sm text-white font-medium">{user?.username || 'User'}</p>
                 <p className="text-xs text-gray-400">
@@ -343,6 +349,69 @@ const Navigation = ({
               >
                 <LogOut className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* 모바일 햄버거 메뉴 버튼 */}
+            <div className="lg:hidden relative" ref={mobileMenuRef}>
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+              >
+                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+
+              {/* 모바일 메뉴 드롭다운 */}
+              {isMobileMenuOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-gradient-to-b from-slate-900/95 to-purple-900/95 backdrop-blur-2xl border border-white/30 rounded-2xl shadow-[0_20px_80px_rgba(0,0,0,0.5)] z-[9999]">
+                  {/* 사용자 정보 - 모바일용 */}
+                  <div className="p-4 border-b border-white/20 sm:hidden">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold">{user?.username?.[0]?.toUpperCase()}</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white font-medium">{user?.username || 'User'}</p>
+                        <p className="text-xs text-gray-400">
+                          {user?.authorities?.join(', ') || 'USER'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 메뉴 아이템들 */}
+                  <div className="p-2">
+                    {menuItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = currentPage === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => handleMenuClick(item.id)}
+                          className={`w-full flex items-center px-4 py-3 rounded-lg transition-all duration-200 mb-1 ${
+                            isActive 
+                              ? 'bg-white/20 text-white shadow-lg' 
+                              : 'text-gray-400 hover:text-white hover:bg-white/10'
+                          }`}
+                        >
+                          <Icon className="w-5 h-5 mr-3" />
+                          {item.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 로그아웃 버튼 - 모바일용 */}
+                  <div className="p-2 border-t border-white/20 sm:hidden">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 transition-all"
+                    >
+                      <LogOut className="w-5 h-5 mr-3" />
+                      로그아웃
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
