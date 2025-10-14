@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Navigation from '../../components/common/Navigation';
+import { API_ENDPOINTS } from '../config/api';
 import confetti from 'canvas-confetti';
 import { 
   CheckCircle, 
@@ -28,7 +29,7 @@ import {
 // 서비스 클래스들
 class DashboardService {
   constructor() {
-    this.baseURL = 'http://localhost:8080/dashboard';
+    this.baseURL = API_ENDPOINTS.DASHBOARD;
   }
 
   getAuthHeaders() {
