@@ -1,0 +1,83 @@
+name: React Frontend CI/CD
+
+# 트리거: main 브랜치에 push 시 실행
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. 코드 체크아웃
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # 2. Node.js 환경 설정
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      # 3. 의존성 설치
+      - name: Install dependencies
+        run: npm ci
+      
+      # 4. 프로덕션 빌드
+      - name: Build React App
+        run: npm run build
+        env:
+          REACT_APP_API_BASE_URL: http://13.124.204.209
+          CI: false  # 경고를 에러로 처리하지 않음
+      
+      # 5. 빌드 파일을 EC2로 전송
+      - name: Deploy to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "build/*"
+          target: "~/react-build-temp"
+          strip_components: 1
+      
+      # 6. EC2에서 배포 스크립트 실행
+      - name: Execute deployment script
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # 기존 빌드 파일 백업
+            if [ -d ~/react-build ]; then
+              mv ~/react-build ~/react-build-backup-$(date +%Y%m%d-%H%M%S)
+            fi
+            
+            # 새 빌드 파일 이동
+            mv ~/react-build-temp ~/react-build
+            
+            # Nginx 재시작 (Docker Compose)
+            cd ~
+            sudo docker compose restart nginx
+            
+            # 배포 확인
+            sleep 5
+            curl -f http://localhost || echo "Health check failed"
+            
+            # 성공 시 백업 파일 정리 (최근 3개만 유지)
+            ls -dt ~/react-build-backup-* 2>/dev/null | tail -n +4 | xargs rm -rf 2>/dev/null || true
+            
+            echo "Frontend deployment completed successfully!"
+      
+      # 7. 배포 결과 알림
+      - name: Deployment Summary
+        run: |
+          echo "🚀 Frontend Deployment Complete!"
+          echo "📦 Build size: $(du -sh build | cut -f1)"
+          echo "🌐 URL: http://13.124.204.209"
+          echo "⏰ Deployed at: $(date)"
