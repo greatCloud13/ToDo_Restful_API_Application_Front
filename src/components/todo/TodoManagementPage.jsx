@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import TodoModal from '../common/TodoModal';
+import Navigation from '../../components/common/Navigation';
 import { 
   CheckCircle, 
   Calendar, 
@@ -46,7 +48,9 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     loadTodos,
     clearError,
     // 유틸리티 함수들
-    getUrgentTodos
+    selectedTodoFromNotification,
+    getUrgentTodos,
+    onClearSelectedTodo
   } = useAppContext();
 
   // 로컬 상태들
@@ -77,6 +81,13 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     status: 'pending',
     memo: '' // 메모 필드 추가
   });
+
+  useEffect(() => {
+    if (selectedTodoFromNotification) {
+      setSelectedTodo(selectedTodoFromNotification);
+      setIsDetailModalOpen(true);
+    }
+  }, [selectedTodoFromNotification]);
 
   useEffect(() => {
     const loadUrgentTodos = async () => {
@@ -207,6 +218,16 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
       case 'minimal': return 'text-blue-400 bg-blue-500/20 border-blue-400/30';
       default: return 'text-gray-400 bg-gray-500/20 border-gray-400/30';
     }
+  };
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setTimeout(() => {
+      setSelectedTodo(null);
+      if (onClearSelectedTodo) {
+        onClearSelectedTodo();
+      }
+    }, 200);
   };
 
   const getPriorityText = (priority) => {
@@ -357,17 +378,18 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
   };
 
   const handleEdit = (todo) => {
-    setSelectedTodo(todo);
-    setFormData({
-      title: todo.title,
-      priority: todo.priority,
-      category: todo.category,
-      dueDate: todo.dueDate,
-      status: todo.status,
-      memo: todo.memo || '' // 메모 필드 추가
-    });
-    setIsEditModalOpen(true);
-  };
+  setSelectedTodo(todo);
+  setFormData({
+    title: todo.title,
+    priority: todo.priority,
+    category: todo.category,
+    dueDate: todo.dueDate,
+    status: todo.status,
+    memo: todo.memo || ''
+  });
+  setIsDetailModalOpen(false);
+  setIsEditModalOpen(true);
+};
 
   const handleDelete = async (id) => {
     if (window.confirm('정말로 이 할일을 삭제하시겠습니까?')) {
@@ -381,16 +403,31 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
 
   const handleToggleStatus = async (id) => {
     try {
-    // ✅ Dashboard 방식: 직접 todoService 호출
-    await todoService.toggleTodoStatus(id);
-    
-    // ✅ Context의 todos 다시 로드
-    await loadTodos();  // Context의 loadTodos 함수 호출
-  } catch (error) {
-    console.error('상태 변경 실패:', error);
-    alert('상태 변경에 실패했습니다.');  // ✅ 사용자 알림 추가
-  }
-};
+      // 현재 todo 찾기
+      const currentTodo = filteredAndSearchedTodos.find(t => t.id === id) || selectedTodo;
+      
+      if (!currentTodo) {
+        console.error('할일을 찾을 수 없습니다');
+        alert('할일을 찾을 수 없습니다.');
+        return;
+      }
+
+      // 상태에 따라 다른 API 호출
+      if (currentTodo.status === 'completed') {
+        // 완료 상태면 → 진행중으로 변경
+        await todoService.updateTodoStatus(id, 'IN_PROGRESS');
+      } else {
+        // 그 외 상태면 → 완료로 변경
+        await todoService.toggleTodoStatus(id);
+      }
+      
+      // Context의 todos 다시 로드
+      await loadTodos();
+    } catch (error) {
+      console.error('상태 변경 실패:', error);
+      alert('상태 변경에 실패했습니다.');
+    }
+  };
 
   const handleAddTodo = () => {
     setFormData({
@@ -437,11 +474,27 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     if (!formData.title.trim()) return;
 
     try {
+      console.log('수정 시작:', { id: selectedTodo.id, formData });
+      
+      // 할일 수정 API 호출
       await updateTodo(selectedTodo.id, formData);
+      console.log('updateTodo 완료');
+      
+      // 모달 닫기
       setIsEditModalOpen(false);
       setSelectedTodo(null);
+      
+      // API 응답 완전히 처리될 때까지 대기
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Context의 todos 다시 로드
+      console.log('loadTodos 호출');
+      await loadTodos();
+      console.log('loadTodos 완료 - UI 업데이트됨');
+      
     } catch (error) {
       console.error('할일 수정 실패:', error);
+      alert('할일 수정에 실패했습니다: ' + error.message);
     }
   };
 
@@ -475,67 +528,14 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* 네비게이션 헤더 */}
-      <nav className="bg-black/20 backdrop-blur-xl border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-bold text-white">ToDo App</h1>
-              </div>
-
-              {/* 대메뉴 */}
-              <div className="hidden md:flex space-x-1">
-                {menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentPage === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleMenuClick(item.id)}
-                      className={`flex items-center px-4 py-2 rounded-lg transition-all duration-200 ${
-                        isActive 
-                          ? 'bg-white/20 text-white shadow-lg' 
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 mr-2" />
-                      {item.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <button className="relative p-2 text-gray-400 hover:text-white transition-colors">
-                <Bell className="w-5 h-5" />
-                {urgentTodos.length > 0 && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse">
-                    <div className="absolute inset-0 bg-red-500 rounded-full animate-ping"></div>
-                  </div>
-                )}
-              </button>
-              
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm text-white font-medium">{user.username}</p>
-                  <p className="text-xs text-gray-400">{user.authorities.join(', ')}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-                  title="로그아웃"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation
+        currentPage={currentPage}
+        onPageChange={onPageChange}
+        onLogout={handleLogout}
+        onTodoClick={(todo) => {
+          handleViewDetail(todo);
+        }}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
@@ -582,7 +582,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
         </div>
 
         {/* 도구바 */}
-        <div className="mb-6 relative z-50">
+        <div className="mb-6 relative z-10">
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
               {/* 검색 및 필터 */}
@@ -598,7 +598,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
                   />
                 </div>
                 
-                <div className="relative z-50">
+                <div className="relative">
                   <button
                     onClick={() => setIsFilterOpen(!isFilterOpen)}
                     className="flex items-center px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors relative z-50"
@@ -613,7 +613,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
                     <div 
                       className="absolute top-full left-0 mt-2 w-64 bg-white/20 backdrop-blur-xl border border-white/30 rounded-lg p-4 shadow-2xl transform transition-all duration-300 ease-out opacity-100 translate-y-0"
                       style={{ 
-                        zIndex: 9999,
+                        zIndex: 100,
                         animation: 'slideDown 0.3s ease-out'
                       }}
                     >
@@ -909,80 +909,157 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
 
       {/* 할일 상세보기 모달 */}
       {isDetailModalOpen && selectedTodo && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">할일 상세</h3>
-                <button onClick={closeModals} className="text-gray-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
+  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 modal-backdrop-enter">
+    <div 
+      className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-2xl modal-enter"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="p-8">
+        {/* 헤더 */}
+        <div className="flex justify-between items-start mb-6">
+          <h2 className="text-2xl font-bold text-white">할 일 상세</h2>
+          <button
+            onClick={handleCloseDetailModal}
+            className="text-gray-400 hover:text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* 내용 */}
+        <div className="space-y-6">
+          {/* 제목 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">제목</label>
+            <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+              <p className="text-white text-lg font-medium">{selectedTodo.title}</p>
+            </div>
+          </div>
+
+          {/* 상태 정보 그리드 */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* 우선순위 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">우선순위</label>
+              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(selectedTodo.priority)}`}>
+                  {getPriorityText(selectedTodo.priority)}
+                </span>
               </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-200">제목</label>
-                  <p className="text-white mt-1">{selectedTodo.title}</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+            </div>
+
+            {/* 상태 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">상태</label>
+              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedTodo.status)}`}>
+                  {getStatusText(selectedTodo.status)}
+                </span>
+              </div>
+            </div>
+
+            {/* 카테고리 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">카테고리</label>
+              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                <p className="text-gray-200 text-sm">{selectedTodo.category}</p>
+              </div>
+            </div>
+
+            {/* 마감일 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">마감일</label>
+              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                <p className="text-gray-200 text-sm">{selectedTodo.dueDate}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 메모 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">메모</label>
+            {selectedTodo.memo ? (
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <p className="text-white whitespace-pre-wrap">{selectedTodo.memo}</p>
+              </div>
+            ) : (
+              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                <p className="text-gray-400 italic">작성된 메모가 없습니다</p>
+              </div>
+            )}
+          </div>
+
+          {/* 날짜 정보 */}
+          <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-200">우선순위</label>
-                    <span className={`inline-block mt-1 px-2 py-1 rounded-full text-xs border ${getPriorityColor(selectedTodo.priority)}`}>
-                      {getPriorityText(selectedTodo.priority)}
-                    </span>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">생성일</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">
+                        {selectedTodo.createdAt ? new Date(selectedTodo.createdAt).toLocaleString('ko-KR') : '-'}
+                      </p>
+                    </div>
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200">상태</label>
-                    <span className={`inline-block mt-1 px-2 py-1 rounded-full text-xs ${getStatusColor(selectedTodo.status)}`}>
-                      {getStatusText(selectedTodo.status)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200">카테고리</label>
-                    <p className="text-white mt-1">{selectedTodo.category}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200">마감일</label>
-                    <p className="text-white mt-1">{formatDate(selectedTodo.dueDate)}</p>
-                  </div>
+
+                  {/* 완료일 (완료된 경우만) */}
+                  {selectedTodo.status === 'completed' && selectedTodo.doneAt && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">완료일</label>
+                      <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                        <p className="text-green-300 text-sm">
+                          {new Date(selectedTodo.doneAt).toLocaleString('ko-KR')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* 메모 영역 추가 */}
-                {selectedTodo.memo && (
+                {/* 사용자 정보 */}
+                {selectedTodo.username && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-200">메모</label>
-                    <div className="mt-1 p-3 bg-white/5 rounded-lg border border-white/10">
-                      <p className="text-white whitespace-pre-wrap">{selectedTodo.memo}</p>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">작성자</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">{selectedTodo.username}</p>
                     </div>
                   </div>
                 )}
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-200">생성일</label>
-                  <p className="text-gray-400 mt-1">
-                    {new Date(selectedTodo.createdAt).toLocaleString('ko-KR')}
-                  </p>
-                </div>
               </div>
-              
+
+              {/* 액션 버튼들 */}
               <div className="flex space-x-3 mt-6">
                 <button
-                  onClick={() => handleEdit(selectedTodo)}
-                  className="flex-1 py-2 px-4 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors"
+                  onClick={() => {
+                    handleEdit(selectedTodo);
+                  }}
+                  className="flex-1 py-3 px-4 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center justify-center"
                 >
+                  <Edit className="w-4 h-4 mr-2" />
                   수정
                 </button>
+                
                 <button
-                  onClick={closeModals}
-                  className="flex-1 py-2 px-4 bg-gray-500/20 text-gray-300 rounded-lg hover:bg-gray-500/30 transition-colors"
+                  onClick={async () => {
+                    await handleToggleStatus(selectedTodo.id);
+                    handleCloseDetailModal();
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-lg transition-colors flex items-center justify-center ${
+                    selectedTodo.status === 'completed'
+                      ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
+                      : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                  }`}
                 >
-                  닫기
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  {selectedTodo.status === 'completed' ? '미완료로 변경' : '완료 처리'}
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    handleDelete(selectedTodo.id);
+                    await handleCloseDetailModal();
+                  }}
+                  className="flex-1 py-3 px-4 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center justify-center"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  삭제
                 </button>
               </div>
             </div>
@@ -991,268 +1068,33 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
       )}
 
       {/* 할일 추가 모달 - 메모 필드 추가 */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">새 할일 추가</h3>
-                <button onClick={closeModals} className="text-gray-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <form onSubmit={handleSubmitAdd} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">제목</label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleFormChange}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="할 일을 입력하세요"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">우선순위</label>
-                    <select
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleFormChange}
-                      className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 0.75rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                        paddingRight: '2.5rem'
-                      }}
-                    >
-                      <option value="critical" className="bg-gray-800 text-white">매우긴급</option>
-                      <option value="high" className="bg-gray-800 text-white">높음</option>
-                      <option value="medium" className="bg-gray-800 text-white">보통</option>
-                      <option value="low" className="bg-gray-800 text-white">낮음</option>
-                      <option value="minimal" className="bg-gray-800 text-white">최소</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">카테고리</label>
-                    <select
-                      name="category"
-                      value={formData.category}
-                      onChange={handleFormChange}
-                      className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 0.75rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                        paddingRight: '2.5rem'
-                      }}
-                    >
-                      <option value="업무" className="bg-gray-800 text-white">업무</option>
-                      <option value="개발" className="bg-gray-800 text-white">개발</option>
-                      <option value="개인" className="bg-gray-800 text-white">개인</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">마감일</label>
-                  <input
-                    type="date"
-                    name="dueDate"
-                    value={formData.dueDate}
-                    onChange={handleFormChange}
-                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                  />
-                </div>
-
-                {/* 메모 필드 추가 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">메모</label>
-                  <textarea
-                    name="memo"
-                    value={formData.memo}
-                    onChange={handleFormChange}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                    placeholder="추가 메모를 입력하세요 (선택사항)"
-                    rows="3"
-                  />
-                </div>
-                
-                <div className="flex space-x-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={closeModals}
-                    className="flex-1 py-3 px-4 bg-gray-500/20 text-gray-300 rounded-lg hover:bg-gray-500/30 transition-colors"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || !formData.title.trim()}
-                    className="flex-1 py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-colors disabled:opacity-50"
-                  >
-                    {loading ? '추가 중...' : '추가'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      <TodoModal
+        isOpen={isAddModalOpen}
+        onClose={closeModals}
+        onSubmit={handleSubmitAdd}
+        formData={formData}
+        onChange={handleFormChange}
+        loading={loading}
+        mode="add"
+        title="새 할일 추가"
+      />
 
       {/* 할일 수정 모달 - 메모 필드 추가 */}
-      {isEditModalOpen && selectedTodo && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">할일 수정</h3>
-                <button onClick={closeModals} className="text-gray-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <form onSubmit={handleSubmitEdit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">제목</label>
-                  <input
-                    type="text"
-                    name="title"
-                    value={formData.title}
-                    onChange={handleFormChange}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="할 일을 입력하세요"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">우선순위</label>
-                    <select
-                      name="priority"
-                      value={formData.priority}
-                      onChange={handleFormChange}
-                      className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 0.75rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                        paddingRight: '2.5rem'
-                      }}
-                    >
-                      <option value="critical" className="bg-gray-800 text-white">매우긴급</option>
-                      <option value="high" className="bg-gray-800 text-white">높음</option>
-                      <option value="medium" className="bg-gray-800 text-white">보통</option>
-                      <option value="low" className="bg-gray-800 text-white">낮음</option>
-                      <option value="minimal" className="bg-gray-800 text-white">최소</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">상태</label>
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleFormChange}
-                      className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 0.75rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                        paddingRight: '2.5rem'
-                      }}
-                    >
-                      <option value="pending" className="bg-gray-800 text-white">대기</option>
-                      <option value="in-progress" className="bg-gray-800 text-white">진행중</option>
-                      <option value="completed" className="bg-gray-800 text-white">완료</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">카테고리</label>
-                    <select
-                      name="category"
-                      value={formData.category}
-                      onChange={handleFormChange}
-                      className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                        backgroundPosition: 'right 0.75rem center',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundSize: '1.5em 1.5em',
-                        paddingRight: '2.5rem'
-                      }}
-                    >
-                      <option value="업무" className="bg-gray-800 text-white">업무</option>
-                      <option value="개발" className="bg-gray-800 text-white">개발</option>
-                      <option value="개인" className="bg-gray-800 text-white">개인</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">마감일</label>
-                    <input
-                      type="date"
-                      name="dueDate"
-                      value={formData.dueDate}
-                      onChange={handleFormChange}
-                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-70 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                    />
-                  </div>
-                </div>
-
-                {/* 메모 필드 추가 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">메모</label>
-                  <textarea
-                    name="memo"
-                    value={formData.memo}
-                    onChange={handleFormChange}
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                    placeholder="추가 메모를 입력하세요 (선택사항)"
-                    rows="3"
-                  />
-                </div>
-                
-                <div className="flex space-x-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={closeModals}
-                    className="flex-1 py-3 px-4 bg-gray-500/20 text-gray-300 rounded-lg hover:bg-gray-500/30 transition-colors"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || !formData.title.trim()}
-                    className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-colors disabled:opacity-50"
-                  >
-                    {loading ? '수정 중...' : '수정'}
-                  </button>
-                </div>s
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      <TodoModal
+        isOpen={isEditModalOpen}
+        onClose={closeModals}
+        onSubmit={handleSubmitEdit}
+        formData={formData}
+        onChange={handleFormChange}
+        loading={loading}
+        mode="edit"
+        title="할일 수정"
+      />
 
       {/* 외부 클릭으로 필터 닫기 */}
       {isFilterOpen && (
         <div 
-          className="fixed inset-0 z-40" 
+          className="fixed inset-0 z-90" 
           onClick={() => setIsFilterOpen(false)}
         />
       )}

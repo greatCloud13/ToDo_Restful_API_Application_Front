@@ -224,36 +224,27 @@ class TodoService {
 
   // 할일 상태 변경 (별도 API 엔드포인트 사용)
   async updateTodoStatus(id, status) {
-    try {
-      const validStatuses = ['pending', 'in-progress', 'completed'];
-      if (!validStatuses.includes(status)) {
-        throw new Error(`유효하지 않은 상태입니다: ${status}`);
-      }
+    const statusMap = {
+      'IN_PROGRESS': 'IN_PROGRESS',
+      'COMPLETE': 'COMPLETE',
+      'ON_HOLD': 'ON_HOLD',
+      'in-progress': 'IN_PROGRESS',
+      'completed': 'COMPLETE',
+      'pending': 'ON_HOLD'
+    };
 
-      // 상태 매핑
-      const statusMap = {
-        'in-progress': 'IN_PROGRESS',
-        'completed': 'COMPLETE',
-        'pending': 'ON_HOLD'
-      };
+    const backendStatus = statusMap[status] || status;
 
-      const backendStatus = statusMap[status];
+    const response = await fetch(`${this.baseURL}/status/${id}?status=${backendStatus}`, {
+      method: 'POST',
+      headers: this.getAuthHeaders()
+    });
 
-      const response = await fetch(`${this.baseURL}/status/${id}?status=${backendStatus}`, {
-        method: 'POST',
-        headers: this.getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error(`상태 변경 실패: ${response.status}`);
-      }
-
-      // 상태 변경 후 업데이트된 할일 정보 반환
-      return await this.getTodoById(id);
-    } catch (error) {
-      console.error('상태 변경 중 오류:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error(`상태 변경 실패: ${response.status}`);
     }
+    
+    return response.json();
   }
 
   // 날짜별 할일 조회 (전체 조회 후 필터링)
