@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Navigation from '../../components/common/Navigation';
 import { 
   Settings,
   MessageSquare,
@@ -16,7 +17,7 @@ import {
   Bell
 } from 'lucide-react';
 
-const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
+const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout, onTodoClick }) => {
   const [activeTab, setActiveTab] = useState('qna');
   const [currentTime, setCurrentTime] = useState(new Date());
   
@@ -589,62 +590,12 @@ const QnaPage = ({ onPageChange, currentPage = 'qna', onLogout }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* 네비게이션 헤더 */}
-      <nav className="bg-black/20 backdrop-blur-xl border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-bold text-white">ToDo App</h1>
-              </div>
-
-              {/* 대메뉴 */}
-              <div className="hidden md:flex space-x-1">
-                {menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentPage === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleMenuClick(item.id)}
-                      className={`flex items-center px-4 py-2 rounded-lg transition-all duration-200 ${
-                        isActive 
-                          ? 'bg-white/20 text-white shadow-lg' 
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 mr-2" />
-                      {item.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <button className="relative p-2 text-gray-400 hover:text-white transition-colors">
-                <Bell className="w-5 h-5" />
-              </button>
-              
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm text-white font-medium">{user.username}</p>
-                  <p className="text-xs text-gray-400">{user.authorities.join(', ')}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-                  title="로그아웃"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation
+        currentPage={currentPage}
+        onPageChange={onPageChange}
+        onLogout={handleLogout}
+        onTodoClick={onTodoClick}
+      />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}

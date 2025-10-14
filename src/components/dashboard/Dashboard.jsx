@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Navigation from '../../components/common/Navigation';
 import confetti from 'canvas-confetti';
 import { 
   CheckCircle, 
@@ -266,7 +267,7 @@ function useDashboardData() {
   return { ...data, refetch: fetchDashboardData };
 }
 
-const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
+const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout, onTodoClick }) => {
   const { stats, todayTodos, urgentTodos, overdueTodos, loading, error, refetch } = useDashboardData();
   
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -289,6 +290,14 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
     username: window.authTokens?.username || "admin",
     authorities: window.authTokens?.authorities || ["ROLE_ADMIN"]
   };
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
   if (stats) {
@@ -526,64 +535,12 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <nav className="bg-black/20 backdrop-blur-xl border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-bold text-white">ToDo App</h1>
-              </div>
-
-              <div className="hidden md:flex space-x-1">
-                {menuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentPage === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => onPageChange?.(item.id)}
-                      className={`flex items-center px-4 py-2 rounded-lg transition-all duration-200 ${
-                        isActive 
-                          ? 'bg-white/20 text-white shadow-lg' 
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 mr-2" />
-                      {item.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <button className="relative p-2 text-gray-400 hover:text-white transition-colors">
-                <Bell className="w-5 h-5" />
-                {displayUrgentTodos.length > 0 && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                )}
-              </button>
-              
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm text-white font-medium">{user.username}</p>
-                  <p className="text-xs text-gray-400">{user.authorities.join(', ')}</p>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-                  title="로그아웃"
-                >
-                  <LogOut className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navigation
+        currentPage={currentPage}
+        onPageChange={onPageChange}
+        onLogout={handleLogout}
+        onTodoClick={onTodoClick}
+      />
 
       {displayUrgentTodos.length > 0 && (
         <div className="bg-gradient-to-r from-red-600/30 via-orange-600/30 to-red-600/30 border-b border-red-500/50">
@@ -626,32 +583,86 @@ const Dashboard = ({ onPageChange, currentPage = 'dashboard', onLogout }) => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-3xl font-bold text-white mb-2">
-                  안녕하세요, {user.username}님! 👋
-                </h2>
-                <p className="text-gray-300">오늘도 생산적인 하루 되세요!</p>
-                {error && (
-                  <div className="mt-2 text-red-400 text-sm bg-red-500/10 p-2 rounded-lg">
-                    API 오류: {error}
+          <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl">
+            <div className="p-8">
+              <div className="flex justify-between items-center">
+                {/* 왼쪽 */}
+                <div className="flex items-center space-x-4">
+                  <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center shadow-xl">
+                    <span className="text-3xl">👋</span>
                   </div>
-                )}
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-mono text-white">
-                  {currentTime.toLocaleTimeString('ko-KR')}
+                  <div>
+                    <h2 className="text-3xl font-bold text-white mb-1">
+                      안녕하세요, <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">{user.username}</span>님
+                    </h2>
+                    <p className="text-gray-400 text-sm">오늘도 멋진 하루를 만들어가세요 ✨</p>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-400">
-                  {currentTime.toLocaleDateString('ko-KR', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric',
-                    weekday: 'long'
-                  })}
+                
+                {/* 오른쪽: 시간/날짜 - 개선된 배치 */}
+                <div className="flex items-stretch bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-xl">
+                  {/* 시간 박스 */}
+                  <div className="px-10 py-6 flex flex-col justify-between border-r border-white/10">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-400/50"></div>
+                      <span className="text-[10px] text-purple-400 font-bold uppercase tracking-[0.2em]">
+                        Live Time
+                      </span>
+                    </div>
+                    <div className="font-mono tabular-nums">
+                      <div className="flex items-baseline space-x-1.5">
+                        <span className="text-[3.5rem] font-bold text-white leading-none tracking-tight">
+                          {currentTime.getHours().toString().padStart(2, '0')}
+                        </span>
+                        <span className="text-[3.5rem] font-bold text-purple-400 leading-none">:</span>
+                        <span className="text-[3.5rem] font-bold text-white leading-none tracking-tight">
+                          {currentTime.getMinutes().toString().padStart(2, '0')}
+                        </span>
+                        <span className="text-xl text-gray-500 ml-1 leading-none self-end mb-2">
+                          {currentTime.getSeconds().toString().padStart(2, '0')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 날짜 박스 */}
+                  <div className="px-10 py-6 flex flex-col justify-between">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Calendar className="w-3 h-3 text-blue-400" />
+                      <span className="text-[10px] text-blue-400 font-bold uppercase tracking-[0.2em]">
+                        Today
+                      </span>
+                    </div>
+                    <div className="flex items-end space-x-3">
+                      {/* 월/요일/년도를 먼저 배치 */}
+                      <div className="flex flex-col justify-end space-y-0.5">
+                        <span className="text-xl font-bold text-blue-400 leading-none">
+                          {currentTime.toLocaleDateString('ko-KR', { month: 'short' }).replace('.', '')}
+                        </span>
+                        <span className="text-xs text-gray-500 font-medium leading-none">
+                          {currentTime.toLocaleDateString('ko-KR', { weekday: 'short' })} · {currentTime.getFullYear()}
+                        </span>
+                      </div>
+                      {/* 일(날짜)을 뒤에 배치 */}
+                      <span className="text-[3.5rem] font-bold text-white leading-none">
+                        {currentTime.getDate()}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
+              
+              {error && (
+                <div className="mt-6 bg-red-500/5 border-l-4 border-red-500 rounded-r-xl p-4">
+                  <div className="flex items-start">
+                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 mr-3 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-red-300 mb-1">오류 발생</p>
+                      <p className="text-xs text-red-400/90">{error}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
