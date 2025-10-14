@@ -4,7 +4,8 @@ import { API_ENDPOINTS } from '../config/api';
 
 class TodoService {
   constructor() {
-    this.baseURL = API_ENDPOINTS.TODOS;;
+    this.baseURL = API_ENDPOINTS.TODOS.replace(/\/+$/, '');
+    console.log('✅ TodoService baseURL:', this.baseURL);
   }
 
   // 토큰 가져오기
