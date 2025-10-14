@@ -18,58 +18,67 @@ import { todoService } from '../../services/todoService';
 import Navigation from '../../components/common/Navigation';
 
 const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
-  // 로컬 상태들
+  // 날짜 관련 state
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  
+  // 모달 관련 state
   const [isAddTodoModalOpen, setIsAddTodoModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedTodo, setSelectedTodo] = useState(null);
   const [editingTodo, setEditingTodo] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedTodo, setSelectedTodo] = useState(null);
+  
+  // 할일 추가용 폼 데이터
   const [newTodo, setNewTodo] = useState({
     title: '',
     priority: 'medium',
     category: '업무',
-    dueDate: new Date().toISOString().split('T')[0]
+    dueDate: new Date().toISOString().split('T')[0],
+    memo: ''
+  });
+  
+  // 할일 수정용 폼 데이터
+  const [formData, setFormData] = useState({
+    title: '',
+    priority: 'medium',
+    category: '업무',
+    dueDate: new Date().toISOString().split('T')[0],
+    status: 'pending',
+    memo: ''
   });
 
-  // Custom Hook으로 데이터 관리 (API 기반)
+  // Custom Hook으로 캘린더 데이터 관리
   const {
-    monthTodos,
     selectedDateTodos,
     stats,
-    urgentTodos,
-    isLoading,
-    error,
     getTodosByDate,
     refresh
   } = useCalendar(selectedDate, currentDate);
 
+  // Context에서 할일 관리 함수들 가져오기
   const {
     todos,
-    user,
     addTodo,
     updateTodo,
     deleteTodo,
-    toggleTodoStatus,
     clearError,
     loading: contextLoading
   } = useAppContext();
 
-  // 통합 로딩/에러 상태
-  const loading = contextLoading || isLoading;
+  const loading = contextLoading;
 
   // 우선순위별 색상
   const getPriorityColor = (priority) => {
     const colors = {
-      critical: 'bg-red-500',
-      high: 'bg-orange-500',
-      medium: 'bg-yellow-500',
-      low: 'bg-green-500',
-      minimal: 'bg-blue-500'
+      critical: 'text-red-300 bg-red-600/20 border-red-500/30',
+      high: 'text-red-400 bg-red-500/20 border-red-400/30',
+      medium: 'text-yellow-400 bg-yellow-500/20 border-yellow-400/30',
+      low: 'text-green-400 bg-green-500/20 border-green-400/30',
+      minimal: 'text-blue-400 bg-blue-500/20 border-blue-400/30'
     };
-    return colors[priority] || 'bg-gray-500';
+    return colors[priority] || 'text-gray-400 bg-gray-500/20 border-gray-400/30';
   };
 
   const getPriorityText = (priority) => {
@@ -81,6 +90,17 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
       minimal: '최소'
     };
     return texts[priority] || '미정';
+  };
+
+  const getPriorityBackground = (priority) => {
+    const backgrounds = {
+      critical: 'bg-red-500',
+      high: 'bg-orange-500',
+      medium: 'bg-yellow-500',
+      low: 'bg-green-500',
+      minimal: 'bg-blue-500'
+    };
+    return backgrounds[priority] || 'bg-gray-500';
   };
 
   const getStatusColor = (status) => {
@@ -127,7 +147,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
            selectedDate.getDate() === day;
   };
 
-  // 이벤트 핸들러들
   const goToPreviousMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
@@ -142,21 +161,8 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     setSelectedDate(today);
   };
 
-  const handleViewDetail = async (todo) => {
-    try {
-      const detailTodo = await todoService.getTodoById(todo.id);
-      setSelectedTodo(detailTodo);
-      setIsDetailModalOpen(true);
-    } catch (error) {
-      console.error('할일 상세 조회 실패:', error);
-      setSelectedTodo(todo);
-      setIsDetailModalOpen(true);
-    }
-  };
-
-  const handleCloseDetailModal = () => {
-    setIsDetailModalOpen(false);
-    setSelectedTodo(null);
+  const handleDateClick = (year, month, day) => {
+    setSelectedDate(new Date(year, month, day));
   };
 
   const handleLogout = async () => {
@@ -186,8 +192,16 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
     }
   };
 
-  const handleDateClick = (year, month, day) => {
-    setSelectedDate(new Date(year, month, day));
+  const handleViewDetail = async (todo) => {
+    try {
+      const detailTodo = await todoService.getTodoById(todo.id);
+      setSelectedTodo(detailTodo);
+      setIsDetailModalOpen(true);
+    } catch (error) {
+      console.error('할일 상세 조회 실패:', error);
+      setSelectedTodo(todo);
+      setIsDetailModalOpen(true);
+    }
   };
 
   const handleAddTodo = () => {
@@ -197,85 +211,48 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
       selectedDate.getDate()
     );
     
-    setIsAddTodoModalOpen(true);
     setEditingTodo(null);
     setNewTodo({
       title: '',
       priority: 'medium',
       category: '업무',
-      dueDate: selectedDateString
+      dueDate: selectedDateString,
+      memo: ''
     });
+    setIsAddTodoModalOpen(true);
   };
 
   const handleEditTodo = (todo) => {
     setEditingTodo(todo);
-    setNewTodo({
+    setFormData({
       title: todo.title,
       priority: todo.priority,
       category: todo.category,
       dueDate: todo.dueDate,
-      status: todo.status || 'pending', // ✅ status 추가
-      memo: todo.memo || '' // ✅ memo 추가
+      status: todo.status || 'pending',
+      memo: todo.memo || ''
     });
-    setIsAddTodoModalOpen(false); // ✅ 추가 모달 닫기
-    setIsDetailModalOpen(false); // ✅ 상세보기 모달 닫기
-    setIsEditModalOpen(true); // ✅ 수정 모달 열기
-  };
-
-  const handleCloseModal = () => {
     setIsAddTodoModalOpen(false);
-    setIsEditModalOpen(false); // ✅ 추가
-    setIsDetailModalOpen(false); // ✅ 추가
-    setEditingTodo(null);
-    setNewTodo({
-      title: '',
-      priority: 'medium',
-      category: '업무',
-      dueDate: new Date().toISOString().split('T')[0],
-      status: 'pending', // ✅ 추가
-      memo: '' // ✅ 추가
-    });
-    clearError();
-  };
-
-  const handleNewTodoChange = (e) => {
-    const { name, value } = e.target;
-    setNewTodo(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmitTodo = async (e) => {
-    e.preventDefault(); // ✅ 추가
-    if (!newTodo.title.trim()) return;
-
-    try {
-      if (editingTodo) {
-        // ✅ 수정 모드
-        await updateTodo(editingTodo.id, newTodo);
-      } else {
-        // ✅ 추가 모드
-        await addTodo(newTodo);
-      }
-      handleCloseModal();
-      refresh();
-    } catch (error) {
-      console.error('할일 저장 실패:', error);
-    }
+    setIsDetailModalOpen(false);
+    setIsEditModalOpen(true);
   };
 
   const handleDeleteTodo = async (id) => {
-    if (window.confirm('정말로 이 할일을 삭제하시겠습니까?')) {
-      try {
-        await deleteTodo(id);
-        refresh();
-      } catch (error) {
-        console.error('할일 삭제 실패:', error);
-      }
+    if (!window.confirm('정말로 이 할일을 삭제하시겠습니까?')) return;
+    
+    try {
+      await deleteTodo(id);
+      setIsDetailModalOpen(false);
+      setSelectedTodo(null);
+      refresh();
+    } catch (error) {
+      console.error('할일 삭제 실패:', error);
+      alert('할일 삭제에 실패했습니다.');
     }
   };
 
   const handleToggleStatus = async (id) => {
     try {
-      // 현재 todo 찾기
       const currentTodo = selectedDateTodos.find(t => t.id === id) || selectedTodo;
       
       if (!currentTodo) {
@@ -283,22 +260,85 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
         return;
       }
 
-      // 상태에 따라 다른 API 호출
       if (currentTodo.status === 'completed') {
-        // 완료 상태면 → 진행중으로 변경
         await todoService.updateTodoStatus(id, 'IN_PROGRESS');
       } else {
-        // 그 외 상태면 → 완료로 변경
-        await todoService.toggleTodoStatus(id); // 또는 updateTodoStatus(id, 'COMPLETE')
+        await todoService.toggleTodoStatus(id);
       }
       
       refresh();
     } catch (error) {
       console.error('상태 변경 실패:', error);
+      alert('상태 변경에 실패했습니다.');
     }
   };
 
-  // 달력 렌더링
+  const handleNewTodoChange = (e) => {
+    const { name, value } = e.target;
+    setNewTodo(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmitTodo = async (e) => {
+    e.preventDefault();
+    
+    try {
+      if (editingTodo) {
+        if (!formData.title.trim()) return;
+        await updateTodo(editingTodo.id, formData);
+        setIsEditModalOpen(false);
+      } else {
+        if (!newTodo.title.trim()) return;
+        await addTodo(newTodo);
+        setIsAddTodoModalOpen(false);
+      }
+      
+      handleCloseModal();
+      refresh();
+    } catch (error) {
+      console.error('할일 저장 실패:', error);
+      alert('할일 저장에 실패했습니다.');
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsAddTodoModalOpen(false);
+    setIsEditModalOpen(false);
+    setIsDetailModalOpen(false);
+    setEditingTodo(null);
+    setSelectedTodo(null);
+    
+    setNewTodo({
+      title: '',
+      priority: 'medium',
+      category: '업무',
+      dueDate: new Date().toISOString().split('T')[0],
+      memo: ''
+    });
+    
+    setFormData({
+      title: '',
+      priority: 'medium',
+      category: '업무',
+      dueDate: new Date().toISOString().split('T')[0],
+      status: 'pending',
+      memo: ''
+    });
+    
+    clearError();
+  };
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setTimeout(() => {
+      setSelectedTodo(null);
+    }, 200);
+  };
+
   const renderCalendar = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -347,7 +387,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
               {dayTodos.slice(0, 2).map((todo) => (
                 <div
                   key={todo.id}
-                  className={`w-full h-1.5 rounded-full ${getPriorityColor(todo.priority)} opacity-80`}
+                  className={`w-full h-1.5 rounded-full ${getPriorityBackground(todo.priority)} opacity-80`}
                   title={todo.title}
                 />
               ))}
@@ -372,13 +412,11 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Navigation 컴포넌트 */}
       <Navigation
         currentPage={currentPage}
         onPageChange={onPageChange}
         onLogout={handleLogout}
         onTodoClick={(todo) => {
-          // 캘린더에서는 해당 날짜로 이동하고 상세보기
           setSelectedDate(new Date(todo.dueDate));
           setSelectedTodo(todo);
           setIsDetailModalOpen(true);
@@ -386,7 +424,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 캘린더 헤더 */}
         <div className="mb-8">
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
             <div className="flex justify-between items-center">
@@ -398,11 +435,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                     <div className="ml-2 w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                   )}
                 </h2>
-                {error && (
-                  <div className="text-red-400 text-sm bg-red-500/10 p-2 rounded-lg">
-                    {error}
-                  </div>
-                )}
               </div>
               <div className="flex items-center space-x-2">
                 <button
@@ -431,16 +463,13 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* 캘린더 메인 */}
           <div className="lg:col-span-3">
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               {renderCalendar()}
             </div>
           </div>
 
-          {/* 사이드바 */}
           <div className="space-y-6">
-            {/* 선택된 날짜 정보 */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
                 <Clock className="w-5 h-5 mr-2" />
@@ -458,14 +487,14 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                       <div className="flex items-center space-x-2 flex-1">
                         <button
                           onClick={() => handleToggleStatus(todo.id)}
-                          className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${
+                          className={`w-4 h-4 rounded-full border-2 transition-all duration-200 flex items-center justify-center ${
                             todo.status === 'completed' 
                               ? 'bg-green-500 border-green-500' 
                               : 'border-gray-400 hover:border-green-400'
                           }`}
                         >
                           {todo.status === 'completed' && (
-                            <CheckCircle className="w-4 h-4 text-white" />
+                            <CheckCircle className="w-3 h-3 text-white" />
                           )}
                         </button>
                         <h4 
@@ -479,7 +508,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                         </h4>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <div className={`w-3 h-3 rounded-full ${getPriorityColor(todo.priority)}`}></div>
+                        <div className={`w-3 h-3 rounded-full ${getPriorityBackground(todo.priority)}`}></div>
                         <button
                           onClick={() => handleEditTodo(todo)}
                           className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
@@ -521,7 +550,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
               </button>
             </div>
 
-            {/* 이달 통계 */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               <h3 className="text-lg font-semibold text-white mb-4">이달 통계</h3>
               <div className="space-y-3">
@@ -548,7 +576,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
               </div>
             </div>
 
-            {/* 우선순위 범례 */}
             <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
               <h3 className="text-lg font-semibold text-white mb-4">우선순위</h3>
               <div className="space-y-2">
@@ -561,7 +588,7 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
                 ].map(({ priority, label, count }) => (
                   <div key={priority} className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className={`w-4 h-4 rounded-full ${getPriorityColor(priority)}`}></div>
+                      <div className={`w-4 h-4 rounded-full ${getPriorityBackground(priority)}`}></div>
                       <span className="text-gray-300 text-sm">{label}</span>
                     </div>
                     <span className="text-white text-sm font-medium">{count}</span>
@@ -573,7 +600,6 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
         </div>
       </div>
 
-      {/* 할일 추가/수정 모달 */}
       <TodoModal
         isOpen={isAddTodoModalOpen}
         onClose={handleCloseModal}
@@ -585,17 +611,156 @@ const CalendarPage = ({ onPageChange, currentPage = 'calendar', onLogout }) => {
         title="새 할일 추가"
       />
 
-      {/* 할일 상세정보 모달 */}
       <TodoModal
         isOpen={isEditModalOpen}
         onClose={handleCloseModal}
         onSubmit={handleSubmitTodo}
-        formData={newTodo}
-        onChange={handleNewTodoChange}
+        formData={formData}
+        onChange={handleFormChange}
         loading={loading}
         mode="edit"
         title="할일 수정"
       />
+
+      {isDetailModalOpen && selectedTodo && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-2xl">
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <h2 className="text-2xl font-bold text-white">할 일 상세</h2>
+                <button onClick={handleCloseDetailModal} className="text-gray-400 hover:text-white transition-colors">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">제목</label>
+                  <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                    <p className="text-white text-lg font-medium">{selectedTodo.title}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">우선순위</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getPriorityColor(selectedTodo.priority)}`}>
+                        {getPriorityText(selectedTodo.priority)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">상태</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedTodo.status)}`}>
+                        {getStatusText(selectedTodo.status)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">카테고리</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">{selectedTodo.category}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">마감일</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">{selectedTodo.dueDate}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">메모</label>
+                  {selectedTodo.memo ? (
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-white whitespace-pre-wrap">{selectedTodo.memo}</p>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-400 italic">작성된 메모가 없습니다</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">생성일</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">
+                        {selectedTodo.createdAt ? new Date(selectedTodo.createdAt).toLocaleString('ko-KR') : '-'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {selectedTodo.status === 'completed' && selectedTodo.doneAt && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">완료일</label>
+                      <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                        <p className="text-green-300 text-sm">
+                          {new Date(selectedTodo.doneAt).toLocaleString('ko-KR')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {selectedTodo.username && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">작성자</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">{selectedTodo.username}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    handleEditTodo(selectedTodo);
+                  }}
+                  className="flex-1 py-3 px-4 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center justify-center"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  수정
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    await handleToggleStatus(selectedTodo.id);
+                    handleCloseDetailModal();
+                  }}
+                  className={`flex-1 py-3 px-4 rounded-lg transition-colors flex items-center justify-center ${
+                    selectedTodo.status === 'completed'
+                      ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
+                      : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                  }`}
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  {selectedTodo.status === 'completed' ? '미완료로 변경' : '완료 처리'}
+                </button>
+                
+                <button
+                  onClick={async () => {
+                    await handleDeleteTodo(selectedTodo.id);
+                    handleCloseDetailModal();
+                  }}
+                  className="flex-1 py-3 px-4 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center justify-center"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
