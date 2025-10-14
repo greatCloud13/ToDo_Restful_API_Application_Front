@@ -3,7 +3,7 @@ import { API_ENDPOINTS } from '../config/api';
 
 class AnalyticsService {
   constructor() {
-    this.baseURL = 'API_ENDPOINTS.ANALYTICS';
+    this.baseURL = API_ENDPOINTS.ANALYTICS;
   }
 
   // HTTP 요청 헬퍼 메서드
