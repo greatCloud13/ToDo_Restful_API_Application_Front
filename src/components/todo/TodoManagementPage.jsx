@@ -63,7 +63,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     category: 'all',
     dateRange: 'all'
   });
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState('list');
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -72,14 +72,13 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [urgentTodos, setUrgentTodos] = useState([]);
 
-  // 새 할일/수정 폼 데이터 (메모 필드 추가)
   const [formData, setFormData] = useState({
     title: '',
     priority: 'medium',
     category: '업무',
     dueDate: new Date().toISOString().split('T')[0],
     status: 'pending',
-    memo: '' // 메모 필드 추가
+    memo: ''
   });
 
   useEffect(() => {
@@ -103,21 +102,10 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     loadUrgentTodos();
   }, [getUrgentTodos]);
 
-  // 메뉴 아이템들
-  const menuItems = [
-    { id: 'dashboard', name: '대시보드', icon: Activity },
-    { id: 'todos', name: '할 일 관리', icon: CheckCircle },
-    { id: 'calendar', name: '캘린더', icon: Calendar },
-    { id: 'analytics', name: '통계', icon: TrendingUp },
-    { id: 'qna', name: '고객지원', icon: Settings }
-  ];
-  
-
   // 필터링 및 검색된 할일 목록
   const filteredAndSearchedTodos = useMemo(() => {
     let filtered = [...todos];
 
-    // 검색 필터 (메모도 검색 대상에 포함)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(todo => 
@@ -127,22 +115,18 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
       );
     }
 
-    // 상태 필터
     if (filterConfig.status !== 'all') {
       filtered = filtered.filter(todo => todo.status === filterConfig.status);
     }
 
-    // 우선순위 필터
     if (filterConfig.priority !== 'all') {
       filtered = filtered.filter(todo => todo.priority === filterConfig.priority);
     }
 
-    // 카테고리 필터
     if (filterConfig.category !== 'all') {
       filtered = filtered.filter(todo => todo.category === filterConfig.category);
     }
 
-    // 날짜 범위 필터
     if (filterConfig.dateRange !== 'all') {
       const today = new Date();
       const todayStr = today.toISOString().split('T')[0];
@@ -168,20 +152,17 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
       }
     }
 
-    // 정렬
     filtered.sort((a, b) => {
       const { key, direction } = sortConfig;
       let aValue = a[key];
       let bValue = b[key];
 
-      // 우선순위 정렬을 위한 특별 처리
       if (key === 'priority') {
         const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3, minimal: 4 };
         aValue = priorityOrder[a.priority];
         bValue = priorityOrder[b.priority];
       }
 
-      // 날짜 정렬
       if (key === 'dueDate' || key === 'createdAt') {
         aValue = new Date(aValue);
         bValue = new Date(bValue);
@@ -208,7 +189,6 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     };
   }, [filteredAndSearchedTodos]);
 
-  // 우선순위별 색상 및 텍스트
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'critical': return 'text-red-300 bg-red-600/20 border-red-500/30';
@@ -218,16 +198,6 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
       case 'minimal': return 'text-blue-400 bg-blue-500/20 border-blue-400/30';
       default: return 'text-gray-400 bg-gray-500/20 border-gray-400/30';
     }
-  };
-
-  const handleCloseDetailModal = () => {
-    setIsDetailModalOpen(false);
-    setTimeout(() => {
-      setSelectedTodo(null);
-      if (onClearSelectedTodo) {
-        onClearSelectedTodo();
-      }
-    }, 200);
   };
 
   const getPriorityText = (priority) => {
@@ -259,45 +229,47 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     }
   };
 
-  // 이벤트 핸들러들
-  const handleLogout = async () => {
-      if (isLoggingOut) return; // 중복 실행 방지
-  
-      try {
-        setIsLoggingOut(true);
-        
-        // 1순위: props로 전달된 onLogout 사용 (권장)
-        if (onLogout && typeof onLogout === 'function') {
-          console.log('Props onLogout 함수 사용');
-          await onLogout();
-          return;
-        }
-        
-        // 2순위: authService 직접 사용
-        console.log('authService 직접 사용');
-        await authService.logout();
-        
-        // 로그아웃 성공 후 페이지 새로고침 (마지막 보장책)
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-        
-      } catch (error) {
-        console.error('로그아웃 처리 중 오류:', error);
-        
-        // 오류 발생 시 강제 정리 및 새로고침
-        try {
-          authService.clearAllTokens();
-        } catch (clearError) {
-          console.error('토큰 정리 실패:', clearError);
-        }
-        
-        // 최후의 수단: 강제 새로고침
-        window.location.reload();
-      } finally {
-        setIsLoggingOut(false);
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setTimeout(() => {
+      setSelectedTodo(null);
+      if (onClearSelectedTodo) {
+        onClearSelectedTodo();
       }
-    };
+    }, 200);
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+
+    try {
+      setIsLoggingOut(true);
+      
+      if (onLogout && typeof onLogout === 'function') {
+        await onLogout();
+        return;
+      }
+      
+      await authService.logout();
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+      
+    } catch (error) {
+      console.error('로그아웃 처리 중 오류:', error);
+      
+      try {
+        authService.clearAllTokens();
+      } catch (clearError) {
+        console.error('토큰 정리 실패:', clearError);
+      }
+      
+      window.location.reload();
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   const handleMenuClick = (menuId) => {
     if (onPageChange) {
@@ -312,24 +284,6 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     }));
   };
 
-  const handleSelectTodo = (id) => {
-    const newSelected = new Set(selectedTodos);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedTodos(newSelected);
-  };
-
-  const handleSelectAll = () => {
-    if (selectedTodos.size === filteredAndSearchedTodos.length) {
-      setSelectedTodos(new Set());
-    } else {
-      setSelectedTodos(new Set(filteredAndSearchedTodos.map(todo => todo.id)));
-    }
-  };
-
   const handleBulkDelete = async () => {
     const count = selectedTodos.size;
     
@@ -339,8 +293,8 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
 
     try {
       const ids = Array.from(selectedTodos);
-      await todoService.bulkDeleteTodos(ids);  // ✅ 백엔드 대량 API 사용
-      await loadTodos();  // ✅ Context의 loadTodos로 새로고침
+      await todoService.bulkDeleteTodos(ids);
+      await loadTodos();
       
       setSelectedTodos(new Set());
       alert(`${count}개의 할일이 삭제되었습니다.`);
@@ -350,46 +304,24 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     }
   };
 
-  const handleBulkStatusChange = async (status) => {
-    const count = selectedTodos.size;
-    const statusText = status === 'completed' ? '완료' : 
-                      status === 'in-progress' ? '진행중' : '대기';
-    
-    if (!window.confirm(`선택된 ${count}개의 할일을 ${statusText}로 변경하시겠습니까?`)) {
-      return;
-    }
-
-    try {
-      const ids = Array.from(selectedTodos);
-      await todoService.bulkUpdateStatus(ids, status);  // ✅ 백엔드 대량 API 사용
-      await loadTodos();  // ✅ Context의 loadTodos로 새로고침
-      
-      setSelectedTodos(new Set());
-      alert(`${count}개의 할일이 ${statusText}로 변경되었습니다.`);
-    } catch (error) {
-      console.error('대량 상태 변경 실패:', error);
-      alert('일부 할일의 상태 변경에 실패했습니다.');
-    }
-  };
-
   const handleViewDetail = (todo) => {
     setSelectedTodo(todo);
     setIsDetailModalOpen(true);
   };
 
   const handleEdit = (todo) => {
-  setSelectedTodo(todo);
-  setFormData({
-    title: todo.title,
-    priority: todo.priority,
-    category: todo.category,
-    dueDate: todo.dueDate,
-    status: todo.status,
-    memo: todo.memo || ''
-  });
-  setIsDetailModalOpen(false);
-  setIsEditModalOpen(true);
-};
+    setSelectedTodo(todo);
+    setFormData({
+      title: todo.title,
+      priority: todo.priority,
+      category: todo.category,
+      dueDate: todo.dueDate,
+      status: todo.status,
+      memo: todo.memo || ''
+    });
+    setIsDetailModalOpen(false);
+    setIsEditModalOpen(true);
+  };
 
   const handleDelete = async (id) => {
     if (window.confirm('정말로 이 할일을 삭제하시겠습니까?')) {
@@ -403,7 +335,6 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
 
   const handleToggleStatus = async (id) => {
     try {
-      // 현재 todo 찾기
       const currentTodo = filteredAndSearchedTodos.find(t => t.id === id) || selectedTodo;
       
       if (!currentTodo) {
@@ -412,16 +343,12 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
         return;
       }
 
-      // 상태에 따라 다른 API 호출
       if (currentTodo.status === 'completed') {
-        // 완료 상태면 → 진행중으로 변경
         await todoService.updateTodoStatus(id, 'IN_PROGRESS');
       } else {
-        // 그 외 상태면 → 완료로 변경
         await todoService.toggleTodoStatus(id);
       }
       
-      // Context의 todos 다시 로드
       await loadTodos();
     } catch (error) {
       console.error('상태 변경 실패:', error);
@@ -436,7 +363,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
       category: '업무',
       dueDate: new Date().toISOString().split('T')[0],
       status: 'pending',
-      memo: '' // 메모 필드 초기화
+      memo: ''
     });
     setIsAddModalOpen(true);
   };
@@ -462,7 +389,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
         category: '업무',
         dueDate: new Date().toISOString().split('T')[0],
         status: 'pending',
-        memo: '' // 메모 필드 초기화
+        memo: ''
       });
     } catch (error) {
       console.error('할일 추가 실패:', error);
@@ -474,23 +401,12 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     if (!formData.title.trim()) return;
 
     try {
-      console.log('수정 시작:', { id: selectedTodo.id, formData });
-      
-      // 할일 수정 API 호출
       await updateTodo(selectedTodo.id, formData);
-      console.log('updateTodo 완료');
-      
-      // 모달 닫기
       setIsEditModalOpen(false);
       setSelectedTodo(null);
       
-      // API 응답 완전히 처리될 때까지 대기
       await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Context의 todos 다시 로드
-      console.log('loadTodos 호출');
       await loadTodos();
-      console.log('loadTodos 완료 - UI 업데이트됨');
       
     } catch (error) {
       console.error('할일 수정 실패:', error);
@@ -506,7 +422,6 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
     clearError();
   };
 
-  // 날짜 포맷팅
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const today = new Date();
@@ -537,20 +452,20 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
         }}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 헤더 */}
-        <div className="mb-8">
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-            <div className="flex justify-between items-start">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+        {/* 헤더 섹션 - 모바일 최적화 */}
+        <div className="mb-6 md:mb-8">
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 md:p-6 border border-white/20">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start space-y-4 sm:space-y-0">
               <div>
-                <h2 className="text-3xl font-bold text-white mb-2 flex items-center">
-                  <Target className="w-8 h-8 mr-3" />
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-2 flex items-center">
+                  <Target className="w-6 h-6 md:w-8 md:h-8 mr-3" />
                   할 일 관리
                   {loading && (
-                    <div className="ml-3 w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    <div className="ml-3 w-5 h-5 md:w-6 md:h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                   )}
                 </h2>
-                <p className="text-gray-300">모든 할 일을 한 곳에서 관리하세요</p>
+                <p className="text-sm md:text-base text-gray-300">모든 할 일을 한 곳에서 관리하세요</p>
                 {error && (
                   <div className="mt-2 text-red-400 text-sm bg-red-500/10 p-2 rounded-lg">
                     {error}
@@ -558,22 +473,22 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
                 )}
               </div>
               
-              {/* 통계 요약 */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div>
-                  <div className="text-2xl font-bold text-white">{stats.total}</div>
+              {/* 통계 요약 - 반응형 */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                <div className="text-center">
+                  <div className="text-xl md:text-2xl font-bold text-white">{stats.total}</div>
                   <div className="text-xs text-gray-400">전체</div>
                 </div>
-                <div>
-                  <div className="text-2xl font-bold text-green-400">{stats.completed}</div>
+                <div className="text-center">
+                  <div className="text-xl md:text-2xl font-bold text-green-400">{stats.completed}</div>
                   <div className="text-xs text-gray-400">완료</div>
                 </div>
-                <div>
-                  <div className="text-2xl font-bold text-blue-400">{stats.inProgress}</div>
+                <div className="text-center">
+                  <div className="text-xl md:text-2xl font-bold text-blue-400">{stats.inProgress}</div>
                   <div className="text-xs text-gray-400">진행중</div>
                 </div>
-                <div>
-                  <div className="text-2xl font-bold text-red-400">{stats.overdue}</div>
+                <div className="text-center">
+                  <div className="text-xl md:text-2xl font-bold text-red-400">{stats.overdue}</div>
                   <div className="text-xs text-gray-400">지연</div>
                 </div>
               </div>
@@ -581,232 +496,218 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
           </div>
         </div>
 
-        {/* 도구바 */}
+        {/* 도구바 - 모바일 최적화 */}
         <div className="mb-6 relative z-10">
           <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-              {/* 검색 및 필터 */}
-              <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="할 일 검색... (제목, 카테고리, 메모)"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 w-64"
-                  />
-                </div>
-                
-                <div className="relative">
-                  <button
-                    onClick={() => setIsFilterOpen(!isFilterOpen)}
-                    className="flex items-center px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors relative z-50"
-                  >
-                    <Filter className="w-4 h-4 mr-2" />
-                    필터
-                    <ChevronDown className="w-4 h-4 ml-2" />
-                  </button>
-
-                  {/* 필터 드롭다운 */}
-                  {isFilterOpen && (
-                    <div 
-                      className="absolute top-full left-0 mt-2 w-64 bg-white/20 backdrop-blur-xl border border-white/30 rounded-lg p-4 shadow-2xl transform transition-all duration-300 ease-out opacity-100 translate-y-0"
-                      style={{ 
-                        zIndex: 100,
-                        animation: 'slideDown 0.3s ease-out'
-                      }}
-                    >
-                      <style jsx>{`
-                        @keyframes slideDown {
-                          from {
-                            opacity: 0;
-                            transform: translateY(-10px);
-                          }
-                          to {
-                            opacity: 1;
-                            transform: translateY(0);
-                          }
-                        }
-                      `}</style>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-100 mb-2">상태</label>
-                          <select
-                            value={filterConfig.status}
-                            onChange={(e) => setFilterConfig(prev => ({ ...prev, status: e.target.value }))}
-                            className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                              backgroundPosition: 'right 0.5rem center',
-                              backgroundRepeat: 'no-repeat',
-                              backgroundSize: '1.5em 1.5em',
-                              paddingRight: '2.5rem'
-                            }}
-                          >
-                            <option value="all" className="bg-gray-800 text-white">전체</option>
-                            <option value="pending" className="bg-gray-800 text-white">대기</option>
-                            <option value="in-progress" className="bg-gray-800 text-white">진행중</option>
-                            <option value="completed" className="bg-gray-800 text-white">완료</option>
-                          </select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-100 mb-2">우선순위</label>
-                          <select
-                            value={filterConfig.priority}
-                            onChange={(e) => setFilterConfig(prev => ({ ...prev, priority: e.target.value }))}
-                            className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                              backgroundPosition: 'right 0.5rem center',
-                              backgroundRepeat: 'no-repeat',
-                              backgroundSize: '1.5em 1.5em',
-                              paddingRight: '2.5rem'
-                            }}
-                          >
-                            <option value="all" className="bg-gray-800 text-white">전체</option>
-                            <option value="critical" className="bg-gray-800 text-white">매우긴급</option>
-                            <option value="high" className="bg-gray-800 text-white">높음</option>
-                            <option value="medium" className="bg-gray-800 text-white">보통</option>
-                            <option value="low" className="bg-gray-800 text-white">낮음</option>
-                            <option value="minimal" className="bg-gray-800 text-white">최소</option>
-                          </select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-100 mb-2">카테고리</label>
-                          <select
-                            value={filterConfig.category}
-                            onChange={(e) => setFilterConfig(prev => ({ ...prev, category: e.target.value }))}
-                            className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                              backgroundPosition: 'right 0.5rem center',
-                              backgroundRepeat: 'no-repeat',
-                              backgroundSize: '1.5em 1.5em',
-                              paddingRight: '2.5rem'
-                            }}
-                          >
-                            <option value="all" className="bg-gray-800 text-white">전체</option>
-                            <option value="업무" className="bg-gray-800 text-white">업무</option>
-                            <option value="개발" className="bg-gray-800 text-white">개발</option>
-                            <option value="개인" className="bg-gray-800 text-white">개인</option>
-                          </select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-100 mb-2">기간</label>
-                          <select
-                            value={filterConfig.dateRange}
-                            onChange={(e) => setFilterConfig(prev => ({ ...prev, dateRange: e.target.value }))}
-                            className="w-full bg-white/10 backdrop-blur-sm border border-white/30 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer"
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
-                              backgroundPosition: 'right 0.5rem center',
-                              backgroundRepeat: 'no-repeat',
-                              backgroundSize: '1.5em 1.5em',
-                              paddingRight: '2.5rem'
-                            }}
-                          >
-                            <option value="all" className="bg-gray-800 text-white">전체</option>
-                            <option value="today" className="bg-gray-800 text-white">오늘</option>
-                            <option value="week" className="bg-gray-800 text-white">이번 주</option>
-                            <option value="overdue" className="bg-gray-800 text-white">지연됨</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+            <div className="flex flex-col space-y-3">
+              {/* 검색바 */}
+              <div className="relative">
+                <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="할 일 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
               </div>
-
-              {/* 액션 버튼들 */}
-              <div className="flex items-center space-x-3">
-                {selectedTodos.size > 0 && (
-                  <div className="flex items-center space-x-2 bg-blue-500/20 px-3 py-2 rounded-lg">
-                    <span className="text-blue-400 text-sm">{selectedTodos.size}개 선택됨</span>
-                    <button
-                      onClick={() => handleBulkStatusChange('completed')}
-                      className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs hover:bg-green-500/30"
-                    >
-                      완료
-                    </button>
-                    <button
-                      onClick={handleBulkDelete}
-                      className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs hover:bg-red-500/30"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                )}
-                
+              
+              {/* 필터 & 정렬 & 추가 버튼 */}
+              <div className="flex items-center space-x-2">
                 <button
+                  onClick={() => setIsFilterOpen(!isFilterOpen)}
+                  className="flex items-center px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors text-sm"
+                >
+                  <Filter className="w-4 h-4 mr-2" />
+                  필터
+                  <ChevronDown className="w-4 h-4 ml-2" />
+                </button>
+                
+                <select
+                  value={sortConfig.key}
+                  onChange={(e) => setSortConfig({ key: e.target.value, direction: 'desc' })}
+                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="createdAt" className="bg-gray-800">최신순</option>
+                  <option value="priority" className="bg-gray-800">우선순위</option>
+                  <option value="dueDate" className="bg-gray-800">마감일</option>
+                </select>
+                
+                <button 
                   onClick={handleAddTodo}
                   disabled={loading}
-                  className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50"
+                  className="flex items-center px-3 py-2 md:px-4 md:py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 text-sm whitespace-nowrap"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  새 할일
+                  <Plus className="w-4 h-4 md:mr-2" />
+                  <span className="hidden md:inline">새 할일</span>
                 </button>
               </div>
+
+              {/* 필터 패널 */}
+              {isFilterOpen && (
+                <div className="p-4 bg-white/5 rounded-lg border border-white/10 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-100 mb-2">상태</label>
+                    <select
+                      value={filterConfig.status}
+                      onChange={(e) => setFilterConfig(prev => ({ ...prev, status: e.target.value }))}
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm"
+                    >
+                      <option value="all" className="bg-gray-800">전체</option>
+                      <option value="pending" className="bg-gray-800">대기</option>
+                      <option value="in-progress" className="bg-gray-800">진행중</option>
+                      <option value="completed" className="bg-gray-800">완료</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-100 mb-2">우선순위</label>
+                    <select
+                      value={filterConfig.priority}
+                      onChange={(e) => setFilterConfig(prev => ({ ...prev, priority: e.target.value }))}
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm"
+                    >
+                      <option value="all" className="bg-gray-800">전체</option>
+                      <option value="critical" className="bg-gray-800">매우긴급</option>
+                      <option value="high" className="bg-gray-800">높음</option>
+                      <option value="medium" className="bg-gray-800">보통</option>
+                      <option value="low" className="bg-gray-800">낮음</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 할일 목록 */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative z-0">
+        {/* 할일 목록 - 모바일: 카드 / 데스크톱: 테이블 */}
+        {/* 모바일 카드 뷰 (1024px 미만) */}
+        <div className="lg:hidden space-y-3">
+          {filteredAndSearchedTodos.length > 0 ? (
+            filteredAndSearchedTodos.map(todo => (
+              <div
+                key={todo.id}
+                className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 hover:bg-white/15 transition-all"
+              >
+                {/* 상단: 체크박스 + 제목 */}
+                <div className="flex items-start space-x-3 mb-3">
+                  <button
+                    onClick={() => handleToggleStatus(todo.id)}
+                    className={`mt-1 w-6 h-6 rounded-full border-2 transition-all flex-shrink-0 flex items-center justify-center ${
+                      todo.status === 'completed' 
+                        ? 'bg-green-500 border-green-500' 
+                        : 'border-gray-400 hover:border-green-400'
+                    }`}
+                  >
+                    {todo.status === 'completed' && (
+                      <Check className="w-4 h-4 text-white" />
+                    )}
+                  </button>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h3 
+                        onClick={() => handleViewDetail(todo)}
+                        className={`font-medium text-base cursor-pointer ${
+                          todo.status === 'completed' 
+                            ? 'text-gray-400 line-through' 
+                            : 'text-white'
+                        }`}
+                      >
+                        {todo.title}
+                      </h3>
+                      {todo.memo && (
+                        <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      )}
+                    </div>
+                    
+                    {/* 배지들 */}
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`px-2 py-1 rounded-full text-xs border ${getPriorityColor(todo.priority)}`}>
+                        {getPriorityText(todo.priority)}
+                      </span>
+                      <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(todo.status)}`}>
+                        {getStatusText(todo.status)}
+                      </span>
+                      <span className="px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                        {todo.category}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* 하단: 날짜 + 액션 */}
+                <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                  <span className="text-sm text-gray-400">
+                    📅 {formatDate(todo.dueDate)}
+                  </span>
+                  
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleViewDetail(todo)}
+                      className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
+                      title="상세보기"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleEdit(todo)}
+                      className="p-2 text-gray-400 hover:text-yellow-400 transition-colors"
+                      title="수정"
+                    >
+                      <Edit className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(todo.id)}
+                      className="p-2 text-gray-400 hover:text-red-400 transition-colors"
+                      title="삭제"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-12 text-gray-400 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
+              <Target className="w-16 h-16 mx-auto mb-3 opacity-50" />
+              <p className="text-base">조건에 맞는 할 일이 없습니다</p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="mt-2 text-purple-400 hover:text-purple-300 transition-colors text-sm"
+                >
+                  검색 초기화
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 데스크톱 테이블 뷰 (1024px 이상) */}
+        <div className="hidden lg:block bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
           {/* 테이블 헤더 */}
           <div className="p-4 border-b border-white/10">
-            <div className="flex items-center space-x-4">
-              <input
-                type="checkbox"
-                checked={selectedTodos.size === filteredAndSearchedTodos.length && filteredAndSearchedTodos.length > 0}
-                onChange={handleSelectAll}
-                className="w-4 h-4 text-purple-500 bg-white/10 border-white/20 rounded"
-              />
-              
-              <button
-                onClick={() => handleSort('title')}
-                className="flex items-center text-gray-300 hover:text-white transition-colors"
-              >
-                제목
-                {sortConfig.key === 'title' && (
-                  sortConfig.direction === 'desc' ? <SortDesc className="w-4 h-4 ml-1" /> : <SortAsc className="w-4 h-4 ml-1" />
-                )}
-              </button>
-              
-              <button
-                onClick={() => handleSort('priority')}
-                className="flex items-center text-gray-300 hover:text-white transition-colors"
-              >
-                우선순위
-                {sortConfig.key === 'priority' && (
-                  sortConfig.direction === 'desc' ? <SortDesc className="w-4 h-4 ml-1" /> : <SortAsc className="w-4 h-4 ml-1" />
-                )}
-              </button>
-              
-              <button
-                onClick={() => handleSort('status')}
-                className="flex items-center text-gray-300 hover:text-white transition-colors"
-              >
-                상태
-                {sortConfig.key === 'status' && (
-                  sortConfig.direction === 'desc' ? <SortDesc className="w-4 h-4 ml-1" /> : <SortAsc className="w-4 h-4 ml-1" />
-                )}
-              </button>
-              
-              <button
-                onClick={() => handleSort('dueDate')}
-                className="flex items-center text-gray-300 hover:text-white transition-colors"
-              >
-                마감일
-                {sortConfig.key === 'dueDate' && (
-                  sortConfig.direction === 'desc' ? <SortDesc className="w-4 h-4 ml-1" /> : <SortAsc className="w-4 h-4 ml-1" />
-                )}
-              </button>
-              
-              <span className="text-gray-300">작업</span>
+            <div className="grid grid-cols-12 gap-4 items-center">
+              <div className="col-span-1">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-purple-500 bg-white/10 border-white/20 rounded"
+                />
+              </div>
+              <div className="col-span-4">
+                <button
+                  onClick={() => handleSort('title')}
+                  className="flex items-center text-gray-300 hover:text-white transition-colors text-sm"
+                >
+                  제목
+                  {sortConfig.key === 'title' && (
+                    sortConfig.direction === 'desc' ? <SortDesc className="w-4 h-4 ml-1" /> : <SortAsc className="w-4 h-4 ml-1" />
+                  )}
+                </button>
+              </div>
+              <div className="col-span-2 text-gray-300 text-sm">마감일</div>
+              <div className="col-span-1 text-gray-300 text-sm">작업</div>
             </div>
           </div>
 
@@ -816,55 +717,66 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
               filteredAndSearchedTodos.map(todo => (
                 <div
                   key={todo.id}
-                  className="flex items-center space-x-4 p-4 border-b border-white/5 hover:bg-white/5 transition-colors"
+                  className="grid grid-cols-12 gap-4 items-center p-4 border-b border-white/5 hover:bg-white/5 transition-colors"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedTodos.has(todo.id)}
-                    onChange={() => handleSelectTodo(todo.id)}
-                    className="w-4 h-4 text-purple-500 bg-white/10 border-white/20 rounded"
-                  />
+                  <div className="col-span-1">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 text-purple-500 bg-white/10 border-white/20 rounded"
+                    />
+                  </div>
                   
-                  <button
-                    onClick={() => handleToggleStatus(todo.id)}
-                    className={`w-5 h-5 rounded-full border-2 transition-all duration-200 ${
-                      todo.status === 'completed' 
-                        ? 'bg-green-500 border-green-500' 
-                        : 'border-gray-400 hover:border-green-400'
-                    }`}
-                  >
-                    {todo.status === 'completed' && (
-                      <Check className="w-3 h-3 text-white m-auto" />
-                    )}
-                  </button>
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2">
-                      <h3 className={`font-medium truncate ${
-                        todo.status === 'completed' ? 'text-gray-400 line-through' : 'text-white'
-                      }`}>
-                        {todo.title}
-                      </h3>
-                      {todo.memo && (
-                        <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" title="메모 있음" />
-                      )}
+                  <div className="col-span-4">
+                    <div className="flex items-center space-x-3">
+                      <button
+                        onClick={() => handleToggleStatus(todo.id)}
+                        className={`w-5 h-5 rounded-full border-2 transition-all duration-200 flex items-center justify-center ${
+                          todo.status === 'completed' 
+                            ? 'bg-green-500 border-green-500' 
+                            : 'border-gray-400 hover:border-green-400'
+                        }`}
+                      >
+                        {todo.status === 'completed' && (
+                          <Check className="w-3 h-3 text-white" />
+                        )}
+                      </button>
+                      
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center space-x-2">
+                          <h3 
+                            onClick={() => handleViewDetail(todo)}
+                            className={`font-medium truncate cursor-pointer hover:text-purple-400 transition-colors ${
+                              todo.status === 'completed' ? 'text-gray-400 line-through' : 'text-white'
+                            }`}
+                          >
+                            {todo.title}
+                          </h3>
+                          {todo.memo && (
+                            <FileText className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400">{todo.category}</p>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-400">{todo.category}</p>
                   </div>
                   
-                  <div className={`px-2 py-1 rounded-full text-xs border ${getPriorityColor(todo.priority)}`}>
-                    {getPriorityText(todo.priority)}
+                  <div className="col-span-2">
+                    <div className={`px-2 py-1 rounded-full text-xs border inline-block ${getPriorityColor(todo.priority)}`}>
+                      {getPriorityText(todo.priority)}
+                    </div>
                   </div>
                   
-                  <div className={`px-2 py-1 rounded-full text-xs ${getStatusColor(todo.status)}`}>
-                    {getStatusText(todo.status)}
+                  <div className="col-span-2">
+                    <div className={`px-2 py-1 rounded-full text-xs inline-block ${getStatusColor(todo.status)}`}>
+                      {getStatusText(todo.status)}
+                    </div>
                   </div>
                   
-                  <div className="text-sm text-gray-400 w-20">
+                  <div className="col-span-2 text-sm text-gray-400">
                     {formatDate(todo.dueDate)}
                   </div>
                   
-                  <div className="flex items-center space-x-1">
+                  <div className="col-span-1 flex items-center space-x-1">
                     <button
                       onClick={() => handleViewDetail(todo)}
                       className="p-1 text-gray-400 hover:text-blue-400 transition-colors"
@@ -909,88 +821,77 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
 
       {/* 할일 상세보기 모달 */}
       {isDetailModalOpen && selectedTodo && (
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 modal-backdrop-enter">
-        <div 
-          className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-2xl modal-enter"
-          onClick={(e) => e.stopPropagation()}
-        >
-      <div className="p-8">
-        {/* 헤더 */}
-        <div className="flex justify-between items-start mb-6">
-          <h2 className="text-2xl font-bold text-white">할 일 상세</h2>
-          <button
-            onClick={handleCloseDetailModal}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* 내용 */}
-        <div className="space-y-6">
-          {/* 제목 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">제목</label>
-            <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-              <p className="text-white text-lg font-medium">{selectedTodo.title}</p>
-            </div>
-          </div>
-
-          {/* 상태 정보 그리드 */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* 우선순위 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">우선순위</label>
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(selectedTodo.priority)}`}>
-                  {getPriorityText(selectedTodo.priority)}
-                </span>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 md:p-8">
+              {/* 헤더 */}
+              <div className="flex justify-between items-start mb-6">
+                <h2 className="text-xl md:text-2xl font-bold text-white">할 일 상세</h2>
+                <button
+                  onClick={handleCloseDetailModal}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
               </div>
-            </div>
 
-            {/* 상태 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">상태</label>
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedTodo.status)}`}>
-                  {getStatusText(selectedTodo.status)}
-                </span>
-              </div>
-            </div>
+              {/* 내용 */}
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">제목</label>
+                  <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                    <p className="text-white text-lg font-medium">{selectedTodo.title}</p>
+                  </div>
+                </div>
 
-            {/* 카테고리 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">카테고리</label>
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <p className="text-gray-200 text-sm">{selectedTodo.category}</p>
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">우선순위</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(selectedTodo.priority)}`}>
+                        {getPriorityText(selectedTodo.priority)}
+                      </span>
+                    </div>
+                  </div>
 
-            {/* 마감일 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">마감일</label>
-              <div className="p-3 bg-white/5 rounded-lg border border-white/10">
-                <p className="text-gray-200 text-sm">{selectedTodo.dueDate}</p>
-              </div>
-            </div>
-          </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">상태</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(selectedTodo.status)}`}>
+                        {getStatusText(selectedTodo.status)}
+                      </span>
+                    </div>
+                  </div>
 
-          {/* 메모 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">메모</label>
-            {selectedTodo.memo ? (
-              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                <p className="text-white whitespace-pre-wrap">{selectedTodo.memo}</p>
-              </div>
-            ) : (
-              <div className="p-4 bg-white/5 rounded-lg border border-white/10">
-                <p className="text-gray-400 italic">작성된 메모가 없습니다</p>
-              </div>
-            )}
-          </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">카테고리</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">{selectedTodo.category}</p>
+                    </div>
+                  </div>
 
-          {/* 날짜 정보 */}
-          <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">마감일</label>
+                    <div className="p-3 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-200 text-sm">{selectedTodo.dueDate}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">메모</label>
+                  {selectedTodo.memo ? (
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-white whitespace-pre-wrap">{selectedTodo.memo}</p>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-white/5 rounded-lg border border-white/10">
+                      <p className="text-gray-400 italic">작성된 메모가 없습니다</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">생성일</label>
                     <div className="p-3 bg-white/5 rounded-lg border border-white/10">
@@ -1000,7 +901,6 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
                     </div>
                   </div>
 
-                  {/* 완료일 (완료된 경우만) */}
                   {selectedTodo.status === 'completed' && selectedTodo.doneAt && (
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">완료일</label>
@@ -1013,7 +913,6 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
                   )}
                 </div>
 
-                {/* 사용자 정보 */}
                 {selectedTodo.username && (
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">작성자</label>
@@ -1024,12 +923,10 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
                 )}
               </div>
 
-              {/* 액션 버튼들 */}
-              <div className="flex space-x-3 mt-6">
+              {/* 액션 버튼들 - 모바일 최적화 */}
+              <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 mt-6">
                 <button
-                  onClick={() => {
-                    handleEdit(selectedTodo);
-                  }}
+                  onClick={() => handleEdit(selectedTodo)}
                   className="flex-1 py-3 px-4 bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center justify-center"
                 >
                   <Edit className="w-4 h-4 mr-2" />
@@ -1067,7 +964,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
         </div>
       )}
 
-      {/* 할일 추가 모달 - 메모 필드 추가 */}
+      {/* 할일 추가 모달 */}
       <TodoModal
         isOpen={isAddModalOpen}
         onClose={closeModals}
@@ -1079,7 +976,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
         title="새 할일 추가"
       />
 
-      {/* 할일 수정 모달 - 메모 필드 추가 */}
+      {/* 할일 수정 모달 */}
       <TodoModal
         isOpen={isEditModalOpen}
         onClose={closeModals}
@@ -1094,7 +991,7 @@ const TodoManagementPage = ({ onPageChange, currentPage = 'todos', onLogout }) =
       {/* 외부 클릭으로 필터 닫기 */}
       {isFilterOpen && (
         <div 
-          className="fixed inset-0 z-90" 
+          className="fixed inset-0 z-0" 
           onClick={() => setIsFilterOpen(false)}
         />
       )}
