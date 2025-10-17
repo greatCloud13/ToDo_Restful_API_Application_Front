@@ -5,7 +5,8 @@ export const API_ENDPOINTS = {
   TODOS: `${API_BASE_URL}/todos`,
   DASHBOARD: `${API_BASE_URL}/dashboard`,
   CALENDAR: `${API_BASE_URL}/calendar`,
-  ANALYTICS: `${API_BASE_URL}/analytics`
+  ANALYTICS: `${API_BASE_URL}/analytics`,
+  SUPPORT: `${API_BASE_URL}/support`
 };
 
 export default API_BASE_URL;
